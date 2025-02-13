@@ -1,0 +1,3 @@
+[submodule "easyboot"]
+	path = easyboot
+	url = https://gitlab.com/bztsrc/easyboot

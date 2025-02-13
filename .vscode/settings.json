@@ -1,0 +1,8 @@
+{
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "files.trimFinalNewlines": true,
+    "files.insertFinalNewline": true,
+    "git.inputValidationLength": 72,
+    "git.inputValidationSubjectLength": 72,
+}

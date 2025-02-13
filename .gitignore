@@ -1,0 +1,7 @@
+**/.zig-cache
+boot/core
+boot/init
+tools/bin/
+tools/include/
+tools/share/
+astryon.iso
