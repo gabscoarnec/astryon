@@ -74,6 +74,7 @@ export fn asmInterruptEntry() callconv(.Naked) void {
 }
 
 const Exceptions = enum(u64) {
+    GeneralProtectionFault = 0xd,
     PageFault = 0xe,
 };
 
@@ -86,6 +87,17 @@ const PageFaultCodes = enum(u64) {
 };
 
 const SYSCALL_INTERRUPT = 66;
+
+fn generalProtectionFault(frame: *InterruptStackFrame) void {
+    debug.print("General protection fault!\n", .{});
+    debug.print("Faulting instruction: {x}\n", .{frame.rip});
+
+    const code = frame.error_or_irq;
+
+    debug.print("Error code: {d}\n", .{code});
+
+    while (true) {}
+}
 
 fn pageFault(frame: *InterruptStackFrame) void {
     var fault_address: u64 = undefined;
@@ -131,6 +143,9 @@ export fn interruptEntry(frame: *InterruptStackFrame) callconv(.C) void {
     switch (frame.isr) {
         @intFromEnum(Exceptions.PageFault) => {
             pageFault(frame);
+        },
+        @intFromEnum(Exceptions.GeneralProtectionFault) => {
+            generalProtectionFault(frame);
         },
         SYSCALL_INTERRUPT => {
             var args = sys.Arguments{ .arg0 = frame.rdi, .arg1 = frame.rsi, .arg2 = frame.rdx, .arg3 = frame.r10, .arg4 = frame.r8, .arg5 = frame.r9 };
