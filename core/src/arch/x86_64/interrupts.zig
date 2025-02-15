@@ -73,11 +73,65 @@ export fn asmInterruptEntry() callconv(.Naked) void {
     );
 }
 
+const Exceptions = enum(u64) {
+    PageFault = 0xe,
+};
+
+const PageFaultCodes = enum(u64) {
+    Present = 1 << 0,
+    Write = 1 << 1,
+    User = 1 << 2,
+    Reserved = 1 << 3,
+    NoExecuteViolation = 1 << 4,
+};
+
 const SYSCALL_INTERRUPT = 66;
+
+fn pageFault(frame: *InterruptStackFrame) void {
+    var fault_address: u64 = undefined;
+    asm volatile ("mov %%cr2, %[cr2]"
+        : [cr2] "=r" (fault_address),
+    );
+
+    debug.print("Page fault while accessing {x}!\n", .{fault_address});
+    debug.print("Faulting instruction: {x}\n", .{frame.rip});
+
+    const code = frame.error_or_irq;
+
+    debug.print("Fault details: {s} | ", .{switch ((code & @intFromEnum(PageFaultCodes.Present)) > 0) {
+        true => "Present",
+        false => "Not present",
+    }});
+
+    debug.print("{s} | ", .{switch ((code & @intFromEnum(PageFaultCodes.Write)) > 0) {
+        true => "Write access",
+        false => "Read access",
+    }});
+
+    debug.print("{s}", .{switch ((code & @intFromEnum(PageFaultCodes.User)) > 0) {
+        true => "User mode",
+        false => "Kernel mode",
+    }});
+
+    debug.print("{s}", .{switch ((code & @intFromEnum(PageFaultCodes.Reserved)) > 0) {
+        true => " | Reserved bits set",
+        false => "",
+    }});
+
+    debug.print("{s}\n", .{switch ((code & @intFromEnum(PageFaultCodes.NoExecuteViolation)) > 0) {
+        true => " | NX Violation",
+        false => "",
+    }});
+
+    while (true) {}
+}
 
 export fn interruptEntry(frame: *InterruptStackFrame) callconv(.C) void {
     debug.print("Caught interrupt {d}\n", .{frame.isr});
     switch (frame.isr) {
+        @intFromEnum(Exceptions.PageFault) => {
+            pageFault(frame);
+        },
         SYSCALL_INTERRUPT => {
             var args = sys.Arguments{ .arg0 = frame.rdi, .arg1 = frame.rsi, .arg2 = frame.rdx, .arg3 = frame.r10, .arg4 = frame.r8, .arg5 = frame.r9 };
             sys.invokeSyscall(frame.rax, frame, &args, @ptrFromInt(@as(usize, @intFromPtr(&frame.rax))));
