@@ -79,9 +79,8 @@ fn stackTop(begin: usize, size: usize) usize {
     return (begin + size) - 16;
 }
 
-fn setupTSS(gdt: *GlobalDescriptorTable, tss: *TSS, stack: [*]u8, stack_length: usize) void {
+fn setupTSS(gdt: *GlobalDescriptorTable, tss: *TSS) void {
     tss.iomap_base = @sizeOf(TSS);
-    tss.ist0 = stackTop(@intFromPtr(stack), stack_length);
     setTSSBase(&gdt.tss, &gdt.tss2, @intFromPtr(tss));
     setLimit(&gdt.tss, @sizeOf(TSS) - 1);
 }
@@ -120,12 +119,15 @@ pub fn setupGDT() void {
         var gdt = GlobalDescriptorTable{ .null = std.mem.zeroes(GDTEntry), .kernel_code = createGDTEntry(0xffff, 0x0000, 0x00, 0x9a, 0xaf, 0x00), .kernel_data = createGDTEntry(0xffff, 0x0000, 0x00, 0x92, 0xcf, 0x00), .user_code = createGDTEntry(0xffff, 0x0000, 0x00, 0xfa, 0xaf, 0x00), .user_data = createGDTEntry(0xffff, 0x0000, 0x00, 0xf2, 0xcf, 0x00), .tss = createGDTEntry(0x0000, 0x0000, 0x00, 0xe9, 0x0f, 0x00), .tss2 = HighGDTEntry{ .base_high = 0x00000000, .reserved = 0x00000000 } };
         var gdtr = std.mem.zeroes(GDTR);
         var tss = std.mem.zeroes(TSS);
-        var alternate_stack: [platform.PAGE_SIZE * 4]u8 = std.mem.zeroes([platform.PAGE_SIZE * 4]u8);
+        var interrupt_stack: [platform.PAGE_SIZE * 4]u8 = std.mem.zeroes([platform.PAGE_SIZE * 4]u8);
+        var syscall_stack: [platform.PAGE_SIZE * 4]u8 = std.mem.zeroes([platform.PAGE_SIZE * 4]u8);
     };
 
     state.gdtr.offset = @intFromPtr(&state.gdt);
     state.gdtr.size = @sizeOf(GlobalDescriptorTable);
-    setupTSS(&state.gdt, &state.tss, @ptrCast(&state.alternate_stack[0]), @sizeOf(@TypeOf(state.alternate_stack)));
+    setupTSS(&state.gdt, &state.tss);
+    state.tss.ist0 = stackTop(@intFromPtr(&state.interrupt_stack[0]), @sizeOf(@TypeOf(state.interrupt_stack)));
+    state.tss.rsp0 = stackTop(@intFromPtr(&state.syscall_stack[0]), @sizeOf(@TypeOf(state.syscall_stack)));
 
     // Hackish way to call naked functions which we know conform to SysV ABI.
     const lgdt: *const fn (g: *GDTR) callconv(.C) void = @ptrCast(&loadGDT);
