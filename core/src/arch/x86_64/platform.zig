@@ -15,4 +15,5 @@ pub fn platformInit() void {
 pub fn platformEndInit() void {
     pic.remapPIC();
     interrupts.syncInterrupts();
+    interrupts.enableInterrupts();
 }

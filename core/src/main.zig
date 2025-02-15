@@ -10,6 +10,8 @@ const pmm = @import("pmm.zig");
 const MultibootInfo = [*c]u8;
 
 export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
+    interrupts.disableInterrupts();
+
     if (magic != easyboot.MULTIBOOT2_BOOTLOADER_MAGIC) {
         debug.print("Invalid magic number: {x}\n", .{magic});
         while (true) {}
@@ -19,13 +21,9 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
 
     multiboot.parseMultibootTags(@ptrCast(info));
 
-    interrupts.disableInterrupts();
     platform.platformInit();
 
     debug.print("GDT initialized\n", .{});
-
-    platform.platformEndInit();
-    interrupts.enableInterrupts();
 
     if (multiboot.findMultibootTag(easyboot.multiboot_tag_mmap_t, @ptrCast(info))) |tag| {
         var allocator = pmm.initializeFrameAllocator(tag) catch |err| {
@@ -43,6 +41,8 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     } else {
         debug.print("No memory map multiboot tag found!\n", .{});
     }
+
+    platform.platformEndInit();
 
     asm volatile ("int3");
 
