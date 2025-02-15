@@ -99,5 +99,8 @@ pub fn initializeFrameAllocator(tag: *easyboot.multiboot_tag_mmap_t) !FrameAlloc
     const frames_to_lock = try std.math.divCeil(usize, bitmap_size, platform.PAGE_SIZE);
     try lockFrames(&allocator, @intFromPtr(bitmap_base_address), frames_to_lock);
 
+    // Avoid causing trouble.
+    try lockFrame(&allocator, 0);
+
     return allocator;
 }
