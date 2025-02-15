@@ -68,7 +68,7 @@ pub fn findMultibootTag(comptime Type: type, info: MultibootInfo) ?*Type {
 }
 
 /// Find every multiboot tag of the given type.
-pub fn findMultibootTags(comptime Type: type, info: MultibootInfo, callback: *const fn (tag: *Type) void) void {
+pub fn findMultibootTags(comptime Type: type, info: MultibootInfo, callback: *const fn (tag: *Type, ctx: *const anyopaque) void, ctx: *const anyopaque) void {
     const mb_tag: *easyboot.multiboot_info_t = @alignCast(@ptrCast(info));
     const mb_size = mb_tag.total_size;
 
@@ -77,43 +77,43 @@ pub fn findMultibootTags(comptime Type: type, info: MultibootInfo, callback: *co
     while ((@intFromPtr(tag) < last) and (tag.type != easyboot.MULTIBOOT_TAG_TYPE_END)) {
         switch (tag.type) {
             easyboot.MULTIBOOT_TAG_TYPE_CMDLINE => {
-                if (Type == easyboot.multiboot_tag_cmdline_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_cmdline_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_BOOT_LOADER_NAME => {
-                if (Type == easyboot.multiboot_tag_loader_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_loader_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_MODULE => {
-                if (Type == easyboot.multiboot_tag_module_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_module_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_MMAP => {
-                if (Type == easyboot.multiboot_tag_mmap_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_mmap_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_FRAMEBUFFER => {
-                if (Type == easyboot.multiboot_tag_framebuffer_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_framebuffer_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_EFI64 => {
-                if (Type == easyboot.multiboot_tag_efi64_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_efi64_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_EFI64_IH => {
-                if (Type == easyboot.multiboot_tag_efi64_ih_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_efi64_ih_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_SMBIOS => {
-                if (Type == easyboot.multiboot_tag_smbios_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_smbios_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_ACPI_OLD => {
-                if (Type == easyboot.multiboot_tag_old_acpi_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_old_acpi_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_ACPI_NEW => {
-                if (Type == easyboot.multiboot_tag_new_acpi_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_new_acpi_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_SMP => {
-                if (Type == easyboot.multiboot_tag_smp_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_smp_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_PARTUUID => {
-                if (Type == easyboot.multiboot_tag_partuuid_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_partuuid_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             easyboot.MULTIBOOT_TAG_TYPE_EDID => {
-                if (Type == easyboot.multiboot_tag_edid_t) callback(@alignCast(@ptrCast(tag)));
+                if (Type == easyboot.multiboot_tag_edid_t) callback(@alignCast(@ptrCast(tag)), ctx);
             },
             else => {},
         }
