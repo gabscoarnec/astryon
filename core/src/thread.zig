@@ -19,8 +19,6 @@ pub const ThreadControlBlock = struct {
 
 pub const ThreadList = std.DoublyLinkedList(ThreadControlBlock);
 
-var g_threads: ThreadList = .{};
-
 const ALLOCATED_TICKS_PER_TASK = 20;
 
 pub fn enterTask(task: *ThreadControlBlock) noreturn {
@@ -44,7 +42,7 @@ pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadContro
     regs.* = new_task.regs;
 
     if (new_task.directory) |directory| {
-        if (vmm.readPageDirectory() != directory) vmm.setPageDirectory(directory);
+        if (vmm.readPageDirectory() != directory) vmm.setPageDirectory(vmm.getPhysicalPageDirectory(directory));
     }
 
     new_task.ticks = ALLOCATED_TICKS_PER_TASK;
