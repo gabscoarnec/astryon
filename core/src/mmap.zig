@@ -1,4 +1,5 @@
 const easyboot = @cImport(@cInclude("easyboot.h"));
+const target = @import("builtin").target;
 
 const MemoryMapIterator = struct {
     tag: *easyboot.multiboot_tag_mmap_t,
@@ -14,6 +15,16 @@ const MemoryMapIterator = struct {
             self.entry = @alignCast(@ptrCast(new_entry));
 
             if (@intFromPtr(self.entry) >= self.end) self.entry = null;
+
+            if (target.cpu.arch == .x86_64) {
+                // Workaround for https://gitlab.com/qemu-project/qemu/-/commit/8504f129450b909c88e199ca44facd35d38ba4de
+                // This invalid 12GiB reserved entry is made up by QEMU (doesn't appear on any real hardware), so we can simply
+                // ignore it and move on to the next entry.
+                if (current_entry) |entry| {
+                    if (entry.base_addr == 0x000000fd00000000 and entry.length == (0x000000ffffffffff - 0x000000fd00000000) + 1)
+                        return self.next();
+                }
+            }
 
             return current_entry;
         }
