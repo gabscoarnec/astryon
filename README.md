@@ -10,6 +10,10 @@ I've started this project to try something new in the world of OS development, a
 
 - [x] Fully written in Zig
 - [ ] Simple microkernel that only manages memory, scheduling, and basic IPC (in progress)
+  - [x] Memory management
+  - [x] Basic ELF program loading
+  - [ ] Scheduling (in progress)
+  - [ ] Message passing
 - [ ] IPC system using shared memory ring buffers
 - [ ] Init process that can load other services and connect processes to each other (sort of like dbus)
 - [ ] Permission manager, VFS system, etc... all in userspace
@@ -25,8 +29,9 @@ When cloning the repo, make sure to use `git clone --recursive` or run `git subm
 
 If done correctly, you should have the bootloader cloned as a submodule in the `easyboot` folder. Extract `easyboot/distrib/easyboot-x86_64-linux.tgz` into the `tools` folder (Linux only).
 
-The directory tree should look like this:
-```tools
+The `tools` directory tree should look like this:
+```
+    tools
     - bin
     - include
     - share
