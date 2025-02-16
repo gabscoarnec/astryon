@@ -3,6 +3,7 @@ const target = @import("builtin").target;
 const thread = @import("../thread.zig");
 const pmm = @import("../pmm.zig");
 const vmm = @import("vmm.zig").arch;
+const platform = @import("platform.zig").arch;
 
 pub const arch = switch (target.cpu.arch) {
     .x86_64 => @import("x86_64/cpu.zig"),
@@ -26,10 +27,14 @@ pub fn setupCore(allocator: *pmm.FrameAllocator) !void {
     idle_thread.id = 0;
     idle_thread.directory = null;
     idle_thread.regs = std.mem.zeroes(@TypeOf(idle_thread.regs));
+    idle_thread.state = .Running;
     thread.arch.initKernelRegisters(&idle_thread.regs);
     thread.arch.setAddress(&idle_thread.regs, @intFromPtr(&thread.arch.idleLoop));
 
     core.thread_list.append(&core.idle_thread);
+
+    const stack = try pmm.allocFrame(allocator);
+    thread.arch.setStack(&idle_thread.regs, stack.virtualAddress(vmm.PHYSICAL_MAPPING_BASE) + (platform.PAGE_SIZE - 16));
 
     this_core = core;
 }
