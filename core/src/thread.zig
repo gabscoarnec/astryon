@@ -6,13 +6,16 @@ const pmm = @import("pmm.zig");
 const cpu = @import("arch/cpu.zig");
 
 pub const ThreadState = enum {
+    Inactive,
     Running,
+    Blocked,
 };
 
 pub const ThreadControlBlock = struct {
     id: u64,
     directory: ?*vmm.PageDirectory,
     regs: interrupts.InterruptStackFrame,
+    state: ThreadState,
 
     ticks: u64,
 };
@@ -82,6 +85,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.id = next_id.fetchAdd(1, .seq_cst);
     thread.directory = null;
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
+    thread.state = .Inactive;
 
     return thread;
 }
