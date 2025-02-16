@@ -99,6 +99,11 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     };
     thread.arch.setStack(&init.regs, stack);
 
+    pmm.setGlobalAllocator(&allocator) catch |err| {
+        debug.print("Error while setting up global frame allocator: {}\n", .{err});
+        while (true) {}
+    };
+
     platform.platformEndInit();
 
     thread.enterTask(init);

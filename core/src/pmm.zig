@@ -1,8 +1,10 @@
 const std = @import("std");
 const easyboot = @cImport(@cInclude("easyboot.h"));
 const platform = @import("arch/platform.zig").arch;
+const vmm = @import("arch/vmm.zig").arch;
 const mmap = @import("mmap.zig");
 const bmap = @import("lib/bitmap.zig");
+const locking = @import("lib/spinlock.zig");
 
 const FrameAllocatorError = error{
     InvalidMemoryMap,
@@ -103,4 +105,29 @@ pub fn initializeFrameAllocator(tag: *easyboot.multiboot_tag_mmap_t) !FrameAlloc
     try lockFrame(&allocator, 0);
 
     return allocator;
+}
+
+var lock: locking.SpinLock = .{};
+var global_allocator: *FrameAllocator = undefined;
+
+pub fn setGlobalAllocator(allocator: *FrameAllocator) !void {
+    const frame = try allocFrame(allocator);
+    const virt = frame.virtualAddress(vmm.PHYSICAL_MAPPING_BASE);
+
+    global_allocator = @ptrFromInt(virt);
+    global_allocator.* = allocator.*;
+}
+
+pub fn lockGlobalAllocator() *FrameAllocator {
+    lock.lock();
+    return global_allocator;
+}
+
+pub fn tryLockGlobalAllocator() ?*FrameAllocator {
+    if (!lock.tryLock()) return null;
+    return global_allocator;
+}
+
+pub fn unlockGlobalAllocator() void {
+    lock.unlock();
 }
