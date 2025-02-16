@@ -1,13 +1,9 @@
-fn syscall(num: u64, arg: u64) void {
-    asm volatile ("int $66"
-        :
-        : [num] "{rax}" (num),
-          [arg] "{rdi}" (arg),
-    );
-}
+const kernel = @import("kernel.zig");
 
 export fn _start(base: u64) callconv(.C) noreturn {
-    syscall(0, base);
+    kernel.print(base);
 
-    while (true) {}
+    while (true) {
+        kernel.yield();
+    }
 }
