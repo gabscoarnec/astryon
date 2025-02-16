@@ -1,6 +1,7 @@
 const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
 const pic = @import("pic.zig");
+const pit = @import("pit.zig");
 const interrupts = @import("interrupts.zig");
 
 pub const PAGE_SIZE = 4096;
@@ -26,5 +27,5 @@ pub fn platformInit() void {
 pub fn platformEndInit() void {
     pic.remapPIC();
     interrupts.syncInterrupts();
-    interrupts.enableInterrupts();
+    pit.initializePIT();
 }

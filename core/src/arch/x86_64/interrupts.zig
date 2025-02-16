@@ -139,7 +139,16 @@ fn pageFault(frame: *InterruptStackFrame) void {
 }
 
 export fn interruptEntry(frame: *InterruptStackFrame) callconv(.C) void {
-    debug.print("Caught interrupt {d}\n", .{frame.isr});
+    if (frame.isr >= 32 and frame.isr < 48) {
+        // IRQ
+        const irq_handler = irq_handlers[frame.error_or_irq];
+        if (irq_handler) |handler| {
+            handler(@intCast(frame.error_or_irq), frame);
+        }
+        pic.picEOI(@intCast(frame.error_or_irq));
+        return;
+    }
+
     switch (frame.isr) {
         @intFromEnum(Exceptions.PageFault) => {
             pageFault(frame);
@@ -149,7 +158,7 @@ export fn interruptEntry(frame: *InterruptStackFrame) callconv(.C) void {
         },
         SYSCALL_INTERRUPT => {
             var args = sys.Arguments{ .arg0 = frame.rdi, .arg1 = frame.rsi, .arg2 = frame.rdx, .arg3 = frame.r10, .arg4 = frame.r8, .arg5 = frame.r9 };
-            sys.invokeSyscall(frame.rax, frame, &args, @ptrFromInt(@as(usize, @intFromPtr(&frame.rax))));
+            sys.invokeSyscall(frame.rax, frame, &args, @ptrCast(&frame.rax));
         },
         else => {},
     }
