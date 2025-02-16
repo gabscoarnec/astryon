@@ -14,7 +14,7 @@ const MultibootInfo = [*c]u8;
 
 const Context = struct {
     allocator: *pmm.FrameAllocator,
-    directory: *vmm.PageDirectory,
+    mapper: vmm.MemoryMapper,
     regs: *interrupts.InterruptStackFrame,
 };
 
@@ -55,8 +55,8 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     };
 
     // At this point the physical address space is already mapped into kernel virtual memory.
-    const init_directory: *vmm.PageDirectory = @ptrFromInt(frame.virtualAddress(vmm.PHYSICAL_MAPPING_BASE));
-    init_directory.* = dir;
+    const mapper = vmm.MemoryMapper.create(frame, vmm.PHYSICAL_MAPPING_BASE);
+    mapper.directory.* = dir;
 
     cpu.setupCore(&allocator) catch |err| {
         debug.print("Error while setting up core-specific scheduler structures: {}\n", .{err});
@@ -68,13 +68,13 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
         while (true) {}
     };
 
-    init.directory = init_directory;
+    init.mapper = mapper;
     thread.arch.initUserRegisters(&init.regs);
     thread.arch.setArgument(&init.regs, base);
 
     thread.addThreadToScheduler(cpu.thisCore(), init);
 
-    const ctx = Context{ .allocator = &allocator, .directory = init_directory, .regs = &init.regs };
+    const ctx = Context{ .allocator = &allocator, .mapper = mapper, .regs = &init.regs };
 
     multiboot.findMultibootTags(easyboot.multiboot_tag_module_t, @ptrCast(info), struct {
         fn handler(mod: *easyboot.multiboot_tag_module_t, c: *const anyopaque) void {
@@ -83,7 +83,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
             if (std.mem.eql(u8, mod.string()[0..name.len], name[0..name.len])) {
                 const phys_frame = pmm.PhysFrame{ .address = mod.mod_start };
                 debug.print("Loading init from module at address {x}, virtual {x}\n", .{ mod.mod_start, phys_frame.virtualAddress(vmm.PHYSICAL_MAPPING_BASE) });
-                const entry = elf.loadElf(context.allocator, context.directory, pmm.PhysFrame{ .address = mod.mod_start }) catch |err| {
+                const entry = elf.loadElf(context.allocator, context.mapper, pmm.PhysFrame{ .address = mod.mod_start }) catch |err| {
                     debug.print("Error while loading ELF file for init: {}\n", .{err});
                     while (true) {}
                 };
@@ -93,7 +93,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     }.handler, &ctx);
 
     const default_stack_size = 0x80000; // 512 KiB.
-    const stack = elf.allocateStack(&allocator, init_directory, base - platform.PAGE_SIZE, default_stack_size) catch |err| {
+    const stack = elf.allocateStack(&allocator, mapper, base - platform.PAGE_SIZE, default_stack_size) catch |err| {
         debug.print("Error while creating stack for init: {}\n", .{err});
         while (true) {}
     };

@@ -13,7 +13,7 @@ pub const ThreadState = enum {
 
 pub const ThreadControlBlock = struct {
     id: u64,
-    directory: ?*vmm.PageDirectory,
+    mapper: ?vmm.MemoryMapper,
     regs: interrupts.InterruptStackFrame,
     state: ThreadState,
 
@@ -31,11 +31,11 @@ pub fn enterTask(task: *ThreadControlBlock) noreturn {
 
     var directory = vmm.readPageDirectory();
 
-    if (task.directory) |dir| {
-        directory = vmm.getPhysicalPageDirectory(dir);
+    if (task.mapper) |mapper| {
+        directory = mapper.phys;
     }
 
-    arch.enterTask(&task.regs, vmm.PHYSICAL_MAPPING_BASE, @ptrCast(directory));
+    arch.enterTask(&task.regs, vmm.PHYSICAL_MAPPING_BASE, directory.address);
 }
 
 pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadControlBlock) void {
@@ -44,8 +44,8 @@ pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadContro
     core.current_thread.regs = regs.*;
     regs.* = new_task.regs;
 
-    if (new_task.directory) |directory| {
-        if (vmm.readPageDirectory() != directory) vmm.setPageDirectory(vmm.getPhysicalPageDirectory(directory));
+    if (new_task.mapper) |mapper| {
+        if (vmm.readPageDirectory().address != mapper.phys.address) vmm.setPageDirectory(mapper.phys);
     }
 
     new_task.ticks = ALLOCATED_TICKS_PER_TASK;
@@ -83,7 +83,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     const node: *ThreadList.Node = @ptrFromInt(frame.virtualAddress(vmm.PHYSICAL_MAPPING_BASE));
     const thread = &node.data;
     thread.id = next_id.fetchAdd(1, .seq_cst);
-    thread.directory = null;
+    thread.mapper = null;
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
     thread.state = .Inactive;
 

@@ -40,6 +40,15 @@ pub const PageDirectory = struct {
     entries: [512]PageTableEntry,
 };
 
+pub const MemoryMapper = struct {
+    phys: pmm.PhysFrame,
+    directory: *PageDirectory,
+
+    pub fn create(frame: pmm.PhysFrame, base: usize) MemoryMapper {
+        return .{ .phys = frame, .directory = @ptrFromInt(frame.virtualAddress(base)) };
+    }
+};
+
 pub const Flags = enum(u32) {
     None = 0,
     ReadWrite = 1,
@@ -97,9 +106,9 @@ fn getTable(pte: *PageTableEntry, base: usize) *allowzero PageDirectory {
     return @ptrFromInt(frame.virtualAddress(base));
 }
 
-pub fn map(allocator: *pmm.FrameAllocator, directory: *PageDirectory, base: usize, virt_address: u64, phys: pmm.PhysFrame, flags: u32, use_huge_pages: bool) !void {
+pub fn map(allocator: *pmm.FrameAllocator, mapper: MemoryMapper, base: usize, virt_address: u64, phys: pmm.PhysFrame, flags: u32, use_huge_pages: bool) !void {
     const indexes = calculatePageTableIndexes(virt_address);
-    const l4 = &directory.entries[indexes.level4];
+    const l4 = &mapper.directory.entries[indexes.level4];
     try setUpParentPageTableEntry(allocator, l4, flags, base);
 
     const l3 = &getTable(l4, base).entries[indexes.level3];
@@ -122,9 +131,9 @@ pub fn map(allocator: *pmm.FrameAllocator, directory: *PageDirectory, base: usiz
     updatePageTableEntry(l1, phys, flags);
 }
 
-pub fn getEntry(directory: *PageDirectory, base: usize, virt_address: u64) ?*PageTableEntry {
+pub fn getEntry(mapper: MemoryMapper, base: usize, virt_address: u64) ?*PageTableEntry {
     const indexes = calculatePageTableIndexes(virt_address);
-    const l4 = &directory.entries[indexes.level4];
+    const l4 = &mapper.directory.entries[indexes.level4];
     if (l4.present == 0) return null;
 
     const l3 = &getTable(l4, base).entries[indexes.level3];
@@ -141,7 +150,7 @@ pub fn getEntry(directory: *PageDirectory, base: usize, virt_address: u64) ?*Pag
     return l1;
 }
 
-pub fn copyToUser(directory: *PageDirectory, base: usize, user: usize, kernel: [*]const u8, size: usize) !void {
+pub fn copyToUser(mapper: MemoryMapper, base: usize, user: usize, kernel: [*]const u8, size: usize) !void {
     const remainder: usize = @rem(user, platform.PAGE_SIZE);
     const user_page = user - remainder;
 
@@ -150,7 +159,7 @@ pub fn copyToUser(directory: *PageDirectory, base: usize, user: usize, kernel: [
     var count = size;
 
     if (user_address != user_page) {
-        const pte = getEntry(directory, base, user_page) orelse return error.MemoryNotInUse;
+        const pte = getEntry(mapper, base, user_page) orelse return error.MemoryNotInUse;
         const frame = pmm.PhysFrame{ .address = pte.get_address() };
         const amount: usize = @min((platform.PAGE_SIZE - remainder), count);
         const virt = frame.virtualAddress(base) + remainder;
@@ -163,7 +172,7 @@ pub fn copyToUser(directory: *PageDirectory, base: usize, user: usize, kernel: [
     }
 
     while (count > 0) {
-        const pte = getEntry(directory, base, user_address) orelse return error.MemoryNotInUse;
+        const pte = getEntry(mapper, base, user_address) orelse return error.MemoryNotInUse;
         const frame = pmm.PhysFrame{ .address = pte.get_address() };
         const amount: usize = @min(platform.PAGE_SIZE, count);
         const virt = frame.virtualAddress(base);
@@ -178,7 +187,7 @@ pub fn copyToUser(directory: *PageDirectory, base: usize, user: usize, kernel: [
     return;
 }
 
-pub fn memsetUser(directory: *PageDirectory, base: usize, user: usize, elem: u8, size: usize) !void {
+pub fn memsetUser(mapper: MemoryMapper, base: usize, user: usize, elem: u8, size: usize) !void {
     const remainder: usize = @rem(user, platform.PAGE_SIZE);
     const user_page = user - remainder;
 
@@ -186,7 +195,7 @@ pub fn memsetUser(directory: *PageDirectory, base: usize, user: usize, elem: u8,
     var count = size;
 
     if (user_address != user_page) {
-        const pte = getEntry(directory, base, user_page) orelse return error.MemoryNotInUse;
+        const pte = getEntry(mapper, base, user_page) orelse return error.MemoryNotInUse;
         const frame = pmm.PhysFrame{ .address = pte.get_address() };
         const amount: usize = @min((platform.PAGE_SIZE - remainder), count);
         const virt = frame.virtualAddress(base) + remainder;
@@ -198,7 +207,7 @@ pub fn memsetUser(directory: *PageDirectory, base: usize, user: usize, elem: u8,
     }
 
     while (count > 0) {
-        const pte = getEntry(directory, base, user_address) orelse return error.MemoryNotInUse;
+        const pte = getEntry(mapper, base, user_address) orelse return error.MemoryNotInUse;
         const frame = pmm.PhysFrame{ .address = pte.get_address() };
         const amount: usize = @min(platform.PAGE_SIZE, count);
         const virt = frame.virtualAddress(base);
@@ -212,25 +221,25 @@ pub fn memsetUser(directory: *PageDirectory, base: usize, user: usize, elem: u8,
     return;
 }
 
-pub fn allocAndMap(allocator: *pmm.FrameAllocator, directory: *PageDirectory, base: u64, pages: usize, flags: u32) !void {
+pub fn allocAndMap(allocator: *pmm.FrameAllocator, mapper: MemoryMapper, base: u64, pages: usize, flags: u32) !void {
     var virt = base;
     var i: usize = 0;
 
     while (i < pages) {
         const frame = try pmm.allocFrame(allocator);
-        try map(allocator, directory, PHYSICAL_MAPPING_BASE, virt, frame, flags, false);
+        try map(allocator, mapper, PHYSICAL_MAPPING_BASE, virt, frame, flags, false);
         virt += platform.PAGE_SIZE;
         i += 1;
     }
 }
 
-fn mapPhysicalMemory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, directory: *PageDirectory, base: usize, flags: u32) !void {
+fn mapPhysicalMemory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, mapper: MemoryMapper, base: usize, flags: u32) !void {
     const address_space_size = mmap.getAddressSpaceSize(tag) orelse return error.InvalidMemoryMap;
     const address_space_pages = address_space_size / HUGE_PAGE_SIZE;
 
     var index: usize = 0;
     while (index < address_space_pages) : (index += 1) {
-        try map(allocator, directory, 0, base + index * HUGE_PAGE_SIZE, pmm.PhysFrame{ .address = index * HUGE_PAGE_SIZE }, flags, true);
+        try map(allocator, mapper, 0, base + index * HUGE_PAGE_SIZE, pmm.PhysFrame{ .address = index * HUGE_PAGE_SIZE }, flags, true);
     }
 }
 
@@ -251,16 +260,18 @@ fn lockPageDirectoryFrames(allocator: *pmm.FrameAllocator, directory: *PageDirec
     }
 }
 
-fn lockPageDirectory(allocator: *pmm.FrameAllocator, directory: *PageDirectory) !void {
-    try pmm.lockFrame(allocator, @intFromPtr(directory));
-    try lockPageDirectoryFrames(allocator, directory, 4);
+fn lockPageDirectory(allocator: *pmm.FrameAllocator, mapper: MemoryMapper) !void {
+    try pmm.lockFrame(allocator, mapper.phys.address);
+    try lockPageDirectoryFrames(allocator, mapper.directory, 4);
 }
 
-fn setUpKernelPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t) !*PageDirectory {
+fn setUpKernelPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t) !pmm.PhysFrame {
     const directory = readPageDirectory();
 
-    try lockPageDirectory(allocator, directory);
-    try mapPhysicalMemory(allocator, tag, directory, PHYSICAL_MAPPING_BASE, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.Global));
+    const mapper = MemoryMapper.create(directory, 0);
+
+    try lockPageDirectory(allocator, mapper);
+    try mapPhysicalMemory(allocator, tag, mapper, PHYSICAL_MAPPING_BASE, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.Global));
 
     return directory;
 }
@@ -276,37 +287,35 @@ fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.
 
     const user_physical_address_base = (USER_ADDRESS_RANGE_END + 1) - physical_address_space_size;
 
-    try mapPhysicalMemory(allocator, tag, user_directory, user_physical_address_base, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.User));
+    const mapper = MemoryMapper.create(.{ .address = @intFromPtr(user_directory) }, 0);
+
+    try mapPhysicalMemory(allocator, tag, mapper, user_physical_address_base, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.User));
 
     return user_physical_address_base;
 }
 
 pub fn createInitialMappings(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, user_directory: *PageDirectory) !usize {
-    const directory = try setUpKernelPageDirectory(allocator, tag);
-    const base = try setUpInitialUserPageDirectory(allocator, tag, directory, user_directory);
+    const frame = try setUpKernelPageDirectory(allocator, tag);
+    const mapper = MemoryMapper.create(frame, 0);
+    const base = try setUpInitialUserPageDirectory(allocator, tag, mapper.directory, user_directory);
 
-    setPageDirectory(directory);
+    setPageDirectory(mapper.phys);
 
     allocator.bitmap.location = @ptrFromInt(@as(usize, PHYSICAL_MAPPING_BASE) + @intFromPtr(allocator.bitmap.location));
 
     return base;
 }
 
-pub fn readPageDirectory() *PageDirectory {
-    var directory: *PageDirectory = undefined;
+pub fn readPageDirectory() pmm.PhysFrame {
+    var address: u64 = undefined;
     asm volatile ("mov %%cr3, %[dir]"
-        : [dir] "=r" (directory),
+        : [dir] "=r" (address),
     );
-    return directory;
+    return .{ .address = address };
 }
-
-pub fn getPhysicalPageDirectory(directory: *PageDirectory) *PageDirectory {
-    return @ptrFromInt(@intFromPtr(directory) - @as(usize, PHYSICAL_MAPPING_BASE));
-}
-
-pub fn setPageDirectory(directory: *PageDirectory) void {
+pub fn setPageDirectory(directory: pmm.PhysFrame) void {
     asm volatile ("mov %[dir], %%cr3"
         :
-        : [dir] "{rdi}" (directory),
+        : [dir] "{rdi}" (directory.address),
     );
 }
