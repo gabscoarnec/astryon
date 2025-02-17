@@ -59,7 +59,7 @@ pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadContro
 pub fn fetchNewTask(core: *cpu.arch.Core, should_idle_if_not_found: bool) ?*ThreadControlBlock {
     const last = core.thread_list.last orelse {
         if (should_idle_if_not_found) {
-            return &core.idle_thread;
+            return &core.idle_thread.data;
         } else return null;
     };
 
