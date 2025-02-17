@@ -15,7 +15,7 @@ pub const Arguments = struct {
 
 const SystemCall = *const fn (frame: *interrupts.InterruptStackFrame, args: *Arguments, retval: *isize) anyerror!void;
 
-const syscalls = [_]SystemCall{ print, mem.allocFrame, mem.lockFrame, mem.freeFrame, sched.yield };
+const syscalls = [_]SystemCall{ print, mem.allocFrame, mem.lockFrame, mem.freeFrame, sched.yield, sched.setPriority, sched.getPriority };
 
 pub fn invokeSyscall(number: usize, frame: *interrupts.InterruptStackFrame, args: *Arguments, retval: *isize) void {
     if (number >= syscalls.len) {

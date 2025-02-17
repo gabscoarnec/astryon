@@ -69,6 +69,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     };
 
     init.mapper = mapper;
+    init.user_priority = 255;
     thread.arch.initUserRegisters(&init.regs);
     thread.arch.setArgument(&init.regs, base);
 

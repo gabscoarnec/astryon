@@ -18,6 +18,9 @@ pub const ThreadControlBlock = struct {
     state: ThreadState,
 
     ticks: u64,
+
+    user_priority: u8,
+    current_priority: u32,
 };
 
 pub const ThreadList = std.DoublyLinkedList(ThreadControlBlock);
@@ -53,28 +56,47 @@ pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadContro
     core.current_thread = new_task;
 }
 
-pub fn scheduleNewTask(regs: *interrupts.InterruptStackFrame) void {
-    const core = cpu.thisCore();
+pub fn fetchNewTask(core: *cpu.arch.Core, should_idle_if_not_found: bool) ?*ThreadControlBlock {
+    const last = core.thread_list.last orelse {
+        if (should_idle_if_not_found) {
+            return &core.idle_thread;
+        } else return null;
+    };
 
-    const new_task = core.thread_list.popFirst() orelse return;
-    core.thread_list.append(new_task);
+    const new_task = &last.data;
 
-    switchTask(regs, &new_task.data);
+    removeThreadFromPriorityQueue(core, new_task);
+
+    return new_task;
+}
+
+pub fn scheduleNewTask(core: *cpu.arch.Core, regs: *interrupts.InterruptStackFrame, new_thread: *ThreadControlBlock) *ThreadControlBlock {
+    if (core.thread_list.first) |first| {
+        first.data.current_priority +|= 4;
+    }
+
+    const current_thread = core.current_thread;
+
+    switchTask(regs, new_thread);
+
+    return current_thread;
 }
 
 pub fn preempt(regs: *interrupts.InterruptStackFrame) void {
     const core = cpu.thisCore();
 
-    core.current_thread.ticks -= 1;
+    core.current_thread.ticks -|= 1;
     if (core.current_thread.ticks == 0) {
-        scheduleNewTask(regs);
+        const new_thread = fetchNewTask(core, false) orelse return;
+        const current_thread = scheduleNewTask(core, regs, new_thread);
+        addThreadToPriorityQueue(core, current_thread);
     }
 }
 
 var next_id: std.atomic.Value(u64) = std.atomic.Value(u64).init(1);
 
 pub fn addThreadToScheduler(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
-    core.thread_list.append(@fieldParentPtr("data", thread));
+    addThreadToPriorityQueue(core, thread);
 }
 
 pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlBlock {
@@ -86,6 +108,33 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.mapper = null;
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
     thread.state = .Inactive;
+    thread.user_priority = 0;
 
     return thread;
+}
+
+pub fn addThreadToPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+    thread.current_priority = thread.user_priority;
+
+    var it: ?*ThreadList.Node = core.thread_list.first;
+    while (it) |n| : (it = n.next) {
+        if (thread.current_priority <= n.data.current_priority) {
+            n.data.current_priority -|= thread.current_priority;
+            core.thread_list.insertBefore(n, @fieldParentPtr("data", thread));
+            return;
+        }
+        thread.current_priority -|= n.data.current_priority;
+    }
+
+    core.thread_list.append(@fieldParentPtr("data", thread));
+}
+
+pub fn removeThreadFromPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+    const node: *ThreadList.Node = @fieldParentPtr("data", thread);
+
+    if (node.next) |n| {
+        n.data.current_priority +|= thread.current_priority;
+    }
+
+    core.thread_list.remove(node);
 }

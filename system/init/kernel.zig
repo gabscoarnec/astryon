@@ -4,6 +4,8 @@ const SystemCall = enum(u64) {
     LockFrame,
     FreeFrame,
     Yield,
+    SetPriority,
+    GetPriority,
 };
 
 const SystemError = error{
@@ -38,4 +40,12 @@ pub fn freeFrame(address: u64) void {
 
 pub fn yield() void {
     _ = syscall(.Yield, 0);
+}
+
+pub fn setPriority(priority: u8) void {
+    _ = syscall(.SetPriority, priority);
+}
+
+pub fn getPriority() u8 {
+    return @truncate(@as(u64, @bitCast(syscall(.GetPriority, 0))));
 }

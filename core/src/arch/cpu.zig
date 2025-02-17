@@ -28,10 +28,9 @@ pub fn setupCore(allocator: *pmm.FrameAllocator) !void {
     idle_thread.mapper = null;
     idle_thread.regs = std.mem.zeroes(@TypeOf(idle_thread.regs));
     idle_thread.state = .Running;
+    idle_thread.user_priority = 0;
     thread.arch.initKernelRegisters(&idle_thread.regs);
     thread.arch.setAddress(&idle_thread.regs, @intFromPtr(&thread.arch.idleLoop));
-
-    core.thread_list.append(&core.idle_thread);
 
     const stack = try pmm.allocFrame(allocator);
     thread.arch.setStack(&idle_thread.regs, stack.virtualAddress(vmm.PHYSICAL_MAPPING_BASE) + (platform.PAGE_SIZE - 16));
