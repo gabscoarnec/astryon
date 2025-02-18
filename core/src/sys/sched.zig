@@ -19,3 +19,7 @@ pub fn getPriority(_: *interrupts.InterruptStackFrame, _: *sys.Arguments, retval
     const core = cpu.thisCore();
     retval.* = core.current_thread.user_priority;
 }
+
+pub fn sleep(regs: *interrupts.InterruptStackFrame, args: *sys.Arguments, _: *isize) anyerror!void {
+    _ = thread.startSleep(regs, args.arg0);
+}

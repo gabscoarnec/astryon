@@ -20,7 +20,8 @@ pub fn setupCore(allocator: *pmm.FrameAllocator) !void {
 
     const core: *arch.Core = @ptrFromInt(frame.virtualAddress(vmm.PHYSICAL_MAPPING_BASE));
     core.id = 0; // FIXME: Actually check core id
-    core.thread_list = .{};
+    core.active_thread_list = .{};
+    core.sleeping_thread_list = .{};
 
     const idle_thread = &core.idle_thread.data;
 

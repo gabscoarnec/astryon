@@ -9,6 +9,7 @@ pub const ThreadState = enum {
     Inactive,
     Running,
     Blocked,
+    Sleeping,
 };
 
 pub const ThreadControlBlock = struct {
@@ -21,6 +22,8 @@ pub const ThreadControlBlock = struct {
 
     user_priority: u8,
     current_priority: u32,
+
+    sleep_ticks: u64,
 };
 
 pub const ThreadList = std.DoublyLinkedList(ThreadControlBlock);
@@ -57,7 +60,7 @@ pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadContro
 }
 
 pub fn fetchNewTask(core: *cpu.arch.Core, should_idle_if_not_found: bool) ?*ThreadControlBlock {
-    const last = core.thread_list.last orelse {
+    const last = core.active_thread_list.last orelse {
         if (should_idle_if_not_found) {
             return &core.idle_thread.data;
         } else return null;
@@ -71,7 +74,7 @@ pub fn fetchNewTask(core: *cpu.arch.Core, should_idle_if_not_found: bool) ?*Thre
 }
 
 pub fn scheduleNewTask(core: *cpu.arch.Core, regs: *interrupts.InterruptStackFrame, new_thread: *ThreadControlBlock) *ThreadControlBlock {
-    if (core.thread_list.first) |first| {
+    if (core.active_thread_list.first) |first| {
         first.data.current_priority +|= 4;
     }
 
@@ -85,6 +88,11 @@ pub fn scheduleNewTask(core: *cpu.arch.Core, regs: *interrupts.InterruptStackFra
 pub fn preempt(regs: *interrupts.InterruptStackFrame) void {
     const core = cpu.thisCore();
 
+    updateSleepQueue(core);
+    while (popSleepQueue(core)) |thread| {
+        reviveThread(core, thread);
+    }
+
     core.current_thread.ticks -|= 1;
     if (core.current_thread.ticks == 0) {
         const new_thread = fetchNewTask(core, false) orelse return;
@@ -93,11 +101,80 @@ pub fn preempt(regs: *interrupts.InterruptStackFrame) void {
     }
 }
 
-var next_id: std.atomic.Value(u64) = std.atomic.Value(u64).init(1);
+pub fn block(regs: *interrupts.InterruptStackFrame) *ThreadControlBlock {
+    const core = cpu.thisCore();
 
-pub fn addThreadToScheduler(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+    // fetchNewTask() always returns a thread if should_idle_if_not_found is set to true.
+    const new_thread = fetchNewTask(core, true) orelse unreachable;
+    const current_thread = scheduleNewTask(core, regs, new_thread);
+    current_thread.state = .Blocked;
+
+    return current_thread;
+}
+
+pub fn startSleep(regs: *interrupts.InterruptStackFrame, ticks: u64) *ThreadControlBlock {
+    const core = cpu.thisCore();
+
+    // fetchNewTask() always returns a thread if should_idle_if_not_found is set to true.
+    const new_thread = fetchNewTask(core, true) orelse unreachable;
+    const current_thread = scheduleNewTask(core, regs, new_thread);
+    current_thread.state = .Sleeping;
+    addThreadToSleepQueue(core, current_thread, ticks);
+
+    return current_thread;
+}
+
+pub fn addThreadToSleepQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock, ticks: u64) void {
+    thread.sleep_ticks = ticks;
+
+    var it: ?*ThreadList.Node = core.sleeping_thread_list.first;
+    while (it) |n| : (it = n.next) {
+        if (thread.sleep_ticks <= n.data.sleep_ticks) {
+            n.data.sleep_ticks -|= thread.sleep_ticks;
+            core.sleeping_thread_list.insertBefore(n, @fieldParentPtr("data", thread));
+            return;
+        }
+        thread.sleep_ticks -|= n.data.sleep_ticks;
+    }
+
+    core.sleeping_thread_list.append(@fieldParentPtr("data", thread));
+}
+
+pub fn removeThreadFromSleepQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+    const node: *ThreadList.Node = @fieldParentPtr("data", thread);
+
+    if (node.next) |n| {
+        n.data.sleep_ticks +|= thread.sleep_ticks;
+    }
+
+    core.sleeping_thread_list.remove(node);
+
+    reviveThread(core, thread);
+}
+
+pub fn updateSleepQueue(core: *cpu.arch.Core) void {
+    const first = core.sleeping_thread_list.first orelse return;
+
+    first.data.sleep_ticks -|= 1;
+}
+
+pub fn popSleepQueue(core: *cpu.arch.Core) ?*ThreadControlBlock {
+    const first = core.sleeping_thread_list.first orelse return null;
+
+    if (first.data.sleep_ticks == 0) {
+        core.sleeping_thread_list.remove(first);
+        return &first.data;
+    }
+
+    return null;
+}
+
+pub fn reviveThread(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+    thread.state = .Running;
     addThreadToPriorityQueue(core, thread);
 }
+
+var next_id: std.atomic.Value(u64) = std.atomic.Value(u64).init(1);
 
 pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlBlock {
     const frame = try pmm.allocFrame(allocator);
@@ -116,17 +193,17 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
 pub fn addThreadToPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
     thread.current_priority = thread.user_priority;
 
-    var it: ?*ThreadList.Node = core.thread_list.first;
+    var it: ?*ThreadList.Node = core.active_thread_list.first;
     while (it) |n| : (it = n.next) {
         if (thread.current_priority <= n.data.current_priority) {
             n.data.current_priority -|= thread.current_priority;
-            core.thread_list.insertBefore(n, @fieldParentPtr("data", thread));
+            core.active_thread_list.insertBefore(n, @fieldParentPtr("data", thread));
             return;
         }
         thread.current_priority -|= n.data.current_priority;
     }
 
-    core.thread_list.append(@fieldParentPtr("data", thread));
+    core.active_thread_list.append(@fieldParentPtr("data", thread));
 }
 
 pub fn removeThreadFromPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
@@ -136,5 +213,5 @@ pub fn removeThreadFromPriorityQueue(core: *cpu.arch.Core, thread: *ThreadContro
         n.data.current_priority +|= thread.current_priority;
     }
 
-    core.thread_list.remove(node);
+    core.active_thread_list.remove(node);
 }

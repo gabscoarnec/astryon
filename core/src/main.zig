@@ -73,8 +73,6 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     thread.arch.initUserRegisters(&init.regs);
     thread.arch.setArgument(&init.regs, base);
 
-    thread.addThreadToScheduler(cpu.thisCore(), init);
-
     const ctx = Context{ .allocator = &allocator, .mapper = mapper, .regs = &init.regs };
 
     multiboot.findMultibootTags(easyboot.multiboot_tag_module_t, @ptrCast(info), struct {

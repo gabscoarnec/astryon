@@ -6,6 +6,7 @@ const SystemCall = enum(u64) {
     Yield,
     SetPriority,
     GetPriority,
+    Sleep,
 };
 
 const SystemError = error{
@@ -48,4 +49,8 @@ pub fn setPriority(priority: u8) void {
 
 pub fn getPriority() u8 {
     return @truncate(@as(u64, @bitCast(syscall(.GetPriority, 0))));
+}
+
+pub fn sleep(ms: u64) void {
+    _ = syscall(.Sleep, ms);
 }
