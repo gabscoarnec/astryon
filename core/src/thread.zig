@@ -44,7 +44,7 @@ pub fn enterTask(task: *ThreadControlBlock) noreturn {
     arch.enterTask(&task.regs, vmm.PHYSICAL_MAPPING_BASE, directory.address);
 }
 
-pub fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadControlBlock) void {
+fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadControlBlock) void {
     const core = cpu.thisCore();
 
     core.current_thread.regs = regs.*;
@@ -124,7 +124,7 @@ pub fn startSleep(regs: *interrupts.InterruptStackFrame, ticks: u64) *ThreadCont
     return current_thread;
 }
 
-pub fn addThreadToSleepQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock, ticks: u64) void {
+fn addThreadToSleepQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock, ticks: u64) void {
     thread.sleep_ticks = ticks;
 
     var it: ?*ThreadList.Node = core.sleeping_thread_list.first;
@@ -152,13 +152,13 @@ pub fn removeThreadFromSleepQueue(core: *cpu.arch.Core, thread: *ThreadControlBl
     reviveThread(core, thread);
 }
 
-pub fn updateSleepQueue(core: *cpu.arch.Core) void {
+fn updateSleepQueue(core: *cpu.arch.Core) void {
     const first = core.sleeping_thread_list.first orelse return;
 
     first.data.sleep_ticks -|= 1;
 }
 
-pub fn popSleepQueue(core: *cpu.arch.Core) ?*ThreadControlBlock {
+fn popSleepQueue(core: *cpu.arch.Core) ?*ThreadControlBlock {
     const first = core.sleeping_thread_list.first orelse return null;
 
     if (first.data.sleep_ticks == 0) {
@@ -206,7 +206,7 @@ pub fn addThreadToPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBloc
     core.active_thread_list.append(@fieldParentPtr("data", thread));
 }
 
-pub fn removeThreadFromPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
+fn removeThreadFromPriorityQueue(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
     const node: *ThreadList.Node = @fieldParentPtr("data", thread);
 
     if (node.next) |n| {
