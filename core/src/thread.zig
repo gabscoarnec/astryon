@@ -108,7 +108,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.mapper = null;
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
     thread.state = .Inactive;
-    thread.user_priority = 0;
+    thread.user_priority = 127;
 
     return thread;
 }
