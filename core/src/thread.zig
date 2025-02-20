@@ -17,12 +17,13 @@ pub const ThreadControlBlock = struct {
     mapper: ?vmm.MemoryMapper,
     regs: interrupts.InterruptStackFrame,
     state: ThreadState,
-
-    ticks: u64,
-
     user_priority: u8,
-    current_priority: u32,
 
+    // Managed by scheduleNewTask(), no need to set manually.
+    ticks: u64,
+    // Managed by addThreadToPriorityQueue(), no need to set manually.
+    current_priority: u32,
+    // Managed by startSleep(), no need to set manually.
     sleep_ticks: u64,
 };
 
