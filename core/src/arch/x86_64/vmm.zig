@@ -23,11 +23,11 @@ pub const PageTableEntry = packed struct {
     available2: u3,
     no_execute: u1,
 
-    pub fn set_address(self: *PageTableEntry, address: u64) void {
+    pub fn setAddress(self: *PageTableEntry, address: u64) void {
         self.address = @intCast(address >> 12);
     }
 
-    pub fn get_address(self: *PageTableEntry) u64 {
+    pub fn getAddress(self: *PageTableEntry) u64 {
         return self.address << 12;
     }
 
@@ -86,7 +86,7 @@ fn updatePageTableEntry(entry: *PageTableEntry, phys: pmm.PhysFrame, flags: u32)
     entry.cache_disabled = hasFlag(flags, Flags.CacheDisable);
     entry.no_execute = hasFlag(flags, Flags.NoExecute);
     entry.global = hasFlag(flags, Flags.Global);
-    entry.set_address(phys.address);
+    entry.setAddress(phys.address);
 }
 
 fn setUpParentPageTableEntry(allocator: *pmm.FrameAllocator, pte: *PageTableEntry, flags: u32, base: usize) !void {
@@ -94,7 +94,7 @@ fn setUpParentPageTableEntry(allocator: *pmm.FrameAllocator, pte: *PageTableEntr
         pte.clear();
         const frame = try pmm.allocFrame(allocator);
         pte.present = 1;
-        pte.set_address(frame.address);
+        pte.setAddress(frame.address);
         getTable(pte, base).* = std.mem.zeroes(PageDirectory);
     }
     if (hasFlag(flags, Flags.ReadWrite) == 1) pte.read_write = 1;
@@ -102,7 +102,7 @@ fn setUpParentPageTableEntry(allocator: *pmm.FrameAllocator, pte: *PageTableEntr
 }
 
 fn getTable(pte: *PageTableEntry, base: usize) *allowzero PageDirectory {
-    const frame = pmm.PhysFrame{ .address = pte.get_address() };
+    const frame = pmm.PhysFrame{ .address = pte.getAddress() };
     return @ptrFromInt(frame.virtualAddress(base));
 }
 
@@ -160,7 +160,7 @@ pub fn copyToUser(mapper: MemoryMapper, base: usize, user: usize, kernel: [*]con
 
     if (user_address != user_page) {
         const pte = getEntry(mapper, base, user_page) orelse return error.MemoryNotInUse;
-        const frame = pmm.PhysFrame{ .address = pte.get_address() };
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
         const amount: usize = @min((platform.PAGE_SIZE - remainder), count);
         const virt = frame.virtualAddress(base) + remainder;
 
@@ -173,7 +173,7 @@ pub fn copyToUser(mapper: MemoryMapper, base: usize, user: usize, kernel: [*]con
 
     while (count > 0) {
         const pte = getEntry(mapper, base, user_address) orelse return error.MemoryNotInUse;
-        const frame = pmm.PhysFrame{ .address = pte.get_address() };
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
         const amount: usize = @min(platform.PAGE_SIZE, count);
         const virt = frame.virtualAddress(base);
 
@@ -196,7 +196,7 @@ pub fn memsetUser(mapper: MemoryMapper, base: usize, user: usize, elem: u8, size
 
     if (user_address != user_page) {
         const pte = getEntry(mapper, base, user_page) orelse return error.MemoryNotInUse;
-        const frame = pmm.PhysFrame{ .address = pte.get_address() };
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
         const amount: usize = @min((platform.PAGE_SIZE - remainder), count);
         const virt = frame.virtualAddress(base) + remainder;
 
@@ -208,7 +208,7 @@ pub fn memsetUser(mapper: MemoryMapper, base: usize, user: usize, elem: u8, size
 
     while (count > 0) {
         const pte = getEntry(mapper, base, user_address) orelse return error.MemoryNotInUse;
-        const frame = pmm.PhysFrame{ .address = pte.get_address() };
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
         const amount: usize = @min(platform.PAGE_SIZE, count);
         const virt = frame.virtualAddress(base);
 
@@ -251,9 +251,9 @@ fn lockPageDirectoryFrames(allocator: *pmm.FrameAllocator, directory: *PageDirec
             if (pte.present == 0) continue;
             if ((index < 4) and (pte.larger_pages == 1)) continue;
 
-            try pmm.lockFrame(allocator, pte.get_address());
+            try pmm.lockFrame(allocator, pte.getAddress());
 
-            const child_table: *PageDirectory = @ptrFromInt(pte.get_address());
+            const child_table: *PageDirectory = @ptrFromInt(pte.getAddress());
 
             try lockPageDirectoryFrames(allocator, child_table, index - 1);
         }
