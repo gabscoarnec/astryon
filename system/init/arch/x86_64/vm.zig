@@ -15,7 +15,8 @@ const PhysFrame = struct {
     }
 
     pub fn virtualPointer(self: *const PhysFrame, comptime T: type, base: usize) *T {
-        return @ptrFromInt(self.virtualAddress(base));
+        const virt = self.virtualAddress(base);
+        return @ptrFromInt(virt);
     }
 };
 
@@ -107,7 +108,7 @@ fn setUpParentPageTableEntry(mapper: *const MemoryMapper, pte: *PageTableEntry, 
         const frame = PhysFrame{ .address = try kernel.allocFrame() };
         pte.present = 1;
         pte.setAddress(frame.address);
-        getTable(pte, mapper.base).* = std.mem.zeroes(PageDirectory);
+        getTable(mapper, pte).* = std.mem.zeroes(PageDirectory);
     }
     if (hasFlag(flags, Flags.ReadWrite) == 1) pte.read_write = 1;
     if (hasFlag(flags, Flags.User) == 1) pte.user = 1;

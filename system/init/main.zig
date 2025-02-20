@@ -8,7 +8,13 @@ export fn _start(base: u64, address: u64) callconv(.C) noreturn {
     kernel.print(address);
     kernel.print(@intFromPtr(mapper.directory));
 
-    vm.map(&mapper, 0x6000000, kernel.allocFrame(), @intFromEnum(vm.Flags.ReadWrite) | @intFromEnum(vm.Flags.User));
+    const phys = kernel.allocFrame() catch {
+        while (true) {}
+    };
+
+    vm.map(&mapper, 0x6000000, .{ .address = phys }, @intFromEnum(vm.Flags.ReadWrite) | @intFromEnum(vm.Flags.User)) catch {
+        while (true) {}
+    };
 
     var counter: u64 = 0;
 
