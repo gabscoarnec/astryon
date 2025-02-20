@@ -14,7 +14,6 @@ pub inline fn enterTask(regs: *interrupts.InterruptStackFrame, comptime base: u6
         \\ mov $0, %rbx
         \\ mov $0, %rcx
         \\ mov $0, %rdx
-        \\ mov $0, %rsi
         \\ mov $0, %rbp
         \\ mov $0, %r8
         \\ mov $0, %r9
@@ -31,7 +30,8 @@ pub inline fn enterTask(regs: *interrupts.InterruptStackFrame, comptime base: u6
           [rflags] "r" (regs.rflags),
           [cs] "r" (regs.cs),
           [rip] "r" (regs.rip),
-          [arg] "{rdi}" (regs.rdi),
+          [arg0] "{rdi}" (regs.rdi),
+          [arg1] "{rsi}" (regs.rsi),
           [base] "r" (base),
           [directory] "r" (directory),
     );
