@@ -51,8 +51,9 @@ pub fn setAddress(regs: *interrupts.InterruptStackFrame, address: u64) void {
     regs.rip = address;
 }
 
-pub fn setArgument(regs: *interrupts.InterruptStackFrame, argument: u64) void {
-    regs.rdi = argument;
+pub fn setArguments(regs: *interrupts.InterruptStackFrame, arg0: u64, arg1: u64) void {
+    regs.rdi = arg0;
+    regs.rsi = arg1;
 }
 
 pub fn setStack(regs: *interrupts.InterruptStackFrame, stack: u64) void {
