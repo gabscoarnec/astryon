@@ -1,10 +1,11 @@
 const std = @import("std");
 const vmm = @import("arch/vmm.zig").arch;
 const platform = @import("arch/platform.zig").arch;
-pub const arch = @import("arch/thread.zig").arch;
 const pmm = @import("pmm.zig");
 const cpu = @import("arch/cpu.zig");
 const locking = @import("lib/spinlock.zig");
+
+pub const arch = @import("arch/thread.zig").arch;
 
 pub const ThreadState = enum {
     Inactive,
