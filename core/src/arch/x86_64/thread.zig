@@ -1,7 +1,7 @@
 const std = @import("std");
 const interrupts = @import("interrupts.zig");
 
-pub inline fn enterTask(regs: *interrupts.InterruptStackFrame, base: u64, directory: u64) noreturn {
+pub inline fn enterThread(regs: *interrupts.InterruptStackFrame, base: u64, directory: u64) noreturn {
     asm volatile (
         \\ addq %[base], %rsp
         \\ push %[ss]

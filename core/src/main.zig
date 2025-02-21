@@ -105,7 +105,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
 
     platform.platformEndInit();
 
-    thread.enterTask(init);
+    thread.enterThread(init);
 }
 
 pub fn panic(message: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {

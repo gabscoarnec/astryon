@@ -5,8 +5,8 @@ const cpu = @import("../arch/cpu.zig");
 
 pub fn yield(regs: *interrupts.InterruptStackFrame, _: *sys.Arguments, _: *isize) anyerror!void {
     const core = cpu.thisCore();
-    const new_thread = thread.fetchNewTask(core, false) orelse return;
-    const current_thread = thread.scheduleNewTask(core, regs, new_thread);
+    const new_thread = thread.fetchNewThread(core, false) orelse return;
+    const current_thread = thread.scheduleNewThread(core, regs, new_thread);
     thread.addThreadToPriorityQueue(core, current_thread);
 }
 
