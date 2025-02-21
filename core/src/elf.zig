@@ -58,7 +58,7 @@ fn canWriteSegment(flags: u32) bool {
     return (flags & 2) > 0;
 }
 
-pub fn loadElf(allocator: *pmm.FrameAllocator, mapper: vmm.MemoryMapper, base_address: pmm.PhysFrame) !usize {
+pub fn loadElf(allocator: *pmm.FrameAllocator, space: vmm.AddressSpace, base_address: pmm.PhysFrame) !usize {
     const address = base_address.virtualAddress(vmm.PHYSICAL_MAPPING_BASE);
 
     debug.print("Address: {}\n", .{address});
@@ -117,15 +117,15 @@ pub fn loadElf(allocator: *pmm.FrameAllocator, mapper: vmm.MemoryMapper, base_ad
             if (canExecuteSegment(program_header.p_flags)) flags &= ~@as(u32, @intFromEnum(vmm.Flags.NoExecute));
 
             // Allocate physical memory for the segment
-            try vmm.allocAndMap(allocator, mapper, base_vaddr, try std.math.divCeil(usize, program_header.p_memsz + vaddr_diff, platform.PAGE_SIZE), flags);
+            try vmm.allocAndMap(allocator, space, base_vaddr, try std.math.divCeil(usize, program_header.p_memsz + vaddr_diff, platform.PAGE_SIZE), flags);
 
-            try vmm.memsetUser(mapper, vmm.PHYSICAL_MAPPING_BASE, base_vaddr, 0, vaddr_diff);
+            try vmm.memsetUser(space, vmm.PHYSICAL_MAPPING_BASE, base_vaddr, 0, vaddr_diff);
 
-            try vmm.copyToUser(mapper, vmm.PHYSICAL_MAPPING_BASE, program_header.p_vaddr, @ptrFromInt(address + program_header.p_offset), program_header.p_filesz);
+            try vmm.copyToUser(space, vmm.PHYSICAL_MAPPING_BASE, program_header.p_vaddr, @ptrFromInt(address + program_header.p_offset), program_header.p_filesz);
 
             const bss_size = program_header.p_memsz - program_header.p_filesz;
 
-            try vmm.memsetUser(mapper, vmm.PHYSICAL_MAPPING_BASE, program_header.p_vaddr + program_header.p_filesz, 0, bss_size);
+            try vmm.memsetUser(space, vmm.PHYSICAL_MAPPING_BASE, program_header.p_vaddr + program_header.p_filesz, 0, bss_size);
         } else {
             debug.print("ELF: Encountered non-loadable program header, skipping\n", .{});
         }
@@ -142,11 +142,11 @@ pub fn loadElf(allocator: *pmm.FrameAllocator, mapper: vmm.MemoryMapper, base_ad
     return elf_header.e_entry;
 }
 
-pub fn allocateStack(allocator: *pmm.FrameAllocator, mapper: vmm.MemoryMapper, stack_top: usize, stack_size: usize) !usize {
+pub fn allocateStack(allocator: *pmm.FrameAllocator, space: vmm.AddressSpace, stack_top: usize, stack_size: usize) !usize {
     const pages = try std.math.divCeil(usize, stack_size, platform.PAGE_SIZE);
     const stack_bottom = stack_top - (pages * platform.PAGE_SIZE);
 
-    try vmm.allocAndMap(allocator, mapper, stack_bottom, pages, @intFromEnum(vmm.Flags.ReadWrite) | @intFromEnum(vmm.Flags.User) | @intFromEnum(vmm.Flags.NoExecute));
+    try vmm.allocAndMap(allocator, space, stack_bottom, pages, @intFromEnum(vmm.Flags.ReadWrite) | @intFromEnum(vmm.Flags.User) | @intFromEnum(vmm.Flags.NoExecute));
 
     return stack_top - 16;
 }

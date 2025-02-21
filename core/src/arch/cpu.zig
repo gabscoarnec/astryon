@@ -26,7 +26,7 @@ pub fn setupCore(allocator: *pmm.FrameAllocator) !void {
     const idle_thread = &core.idle_thread.data;
 
     idle_thread.id = 0;
-    idle_thread.mapper = null;
+    idle_thread.address_space = null;
     idle_thread.regs = std.mem.zeroes(@TypeOf(idle_thread.regs));
     idle_thread.state = .Running;
     idle_thread.user_priority = 0;
