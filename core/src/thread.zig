@@ -44,7 +44,13 @@ pub fn enterTask(task: *ThreadControlBlock) noreturn {
 
     task.state = .Running;
 
-    arch.enterTask(&task.regs, vmm.PHYSICAL_MAPPING_BASE, table.address);
+    // If the stack is in user memory, then we need a pointer to its higher-half version. If it's already in kernel memory, no need to do anything.
+    var base: usize = 0;
+    if (arch.readStackPointer() < vmm.PHYSICAL_MAPPING_BASE) {
+        base += vmm.PHYSICAL_MAPPING_BASE;
+    }
+
+    arch.enterTask(&task.regs, base, table.address);
 }
 
 fn switchTask(regs: *interrupts.InterruptStackFrame, new_task: *ThreadControlBlock) void {

@@ -1,7 +1,7 @@
 const std = @import("std");
 const interrupts = @import("interrupts.zig");
 
-pub inline fn enterTask(regs: *interrupts.InterruptStackFrame, comptime base: u64, directory: u64) noreturn {
+pub inline fn enterTask(regs: *interrupts.InterruptStackFrame, base: u64, directory: u64) noreturn {
     asm volatile (
         \\ addq %[base], %rsp
         \\ push %[ss]
@@ -44,6 +44,13 @@ pub fn idleLoop() callconv(.Naked) noreturn {
         \\ sti
         \\ hlt
         \\ jmp .loop 
+    );
+}
+
+pub inline fn readStackPointer() usize {
+    return asm volatile (
+        \\ mov %rsp, %[result]
+        : [result] "=r" (-> usize),
     );
 }
 
