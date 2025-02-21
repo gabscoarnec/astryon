@@ -66,6 +66,6 @@ If you prefer another virtualization system (like Oracle VirtualBox or VMWare), 
 
 ## License
 
-The bootloader, `easyboot` by [bzt](https://gitlab.com/bztsrc/), is licensed under the GPLv3+ [LICENSE](easyboot/LICENSE).
+The bootloader, `easyboot` by [bzt](https://gitlab.com/bztsrc/), is licensed under the GPLv3+ [LICENSE](https://gitlab.com/bztsrc/easyboot/-/blob/main/LICENSE).
 
 The Astryon operating system is licensed under the BSD-2-Clause [LICENSE](LICENSE).
