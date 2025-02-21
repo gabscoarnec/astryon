@@ -12,7 +12,7 @@ I've started this project to try something new in the world of OS development, a
 - [ ] Simple microkernel that only manages memory, scheduling, and basic IPC (in progress)
   - [x] Memory management
   - [x] Basic ELF program loading
-  - [ ] Scheduling (in progress)
+  - [x] Scheduling
   - [ ] Message passing
 - [ ] IPC system using shared memory ring buffers
 - [ ] Init process that can load other services and connect processes to each other (sort of like dbus)
