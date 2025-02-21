@@ -15,7 +15,7 @@ const MultibootInfo = [*c]u8;
 const Context = struct {
     allocator: *pmm.FrameAllocator,
     space: vmm.AddressSpace,
-    regs: *interrupts.InterruptStackFrame,
+    regs: *platform.Registers,
 };
 
 export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {

@@ -1,6 +1,6 @@
 const std = @import("std");
 const vmm = @import("arch/vmm.zig").arch;
-const interrupts = @import("arch/interrupts.zig").arch;
+const platform = @import("arch/platform.zig").arch;
 pub const arch = @import("arch/thread.zig").arch;
 const pmm = @import("pmm.zig");
 const cpu = @import("arch/cpu.zig");
@@ -16,7 +16,7 @@ pub const ThreadState = enum {
 pub const ThreadControlBlock = struct {
     id: u64,
     address_space: ?vmm.AddressSpace,
-    regs: interrupts.InterruptStackFrame,
+    regs: platform.Registers,
     state: ThreadState,
     user_priority: u8,
 
@@ -58,7 +58,7 @@ pub fn enterThread(thread: *ThreadControlBlock) noreturn {
 }
 
 /// Updates the processor state to run a new thread.
-fn switchThread(regs: *interrupts.InterruptStackFrame, new_thread: *ThreadControlBlock) void {
+fn switchThread(regs: *platform.Registers, new_thread: *ThreadControlBlock) void {
     const core = cpu.thisCore();
 
     core.current_thread.regs = regs.*;
@@ -74,7 +74,7 @@ fn switchThread(regs: *interrupts.InterruptStackFrame, new_thread: *ThreadContro
 }
 
 /// Changes the running thread to a new one and returns the previous one.
-pub fn scheduleNewThread(core: *cpu.arch.Core, regs: *interrupts.InterruptStackFrame, new_thread: *ThreadControlBlock) *ThreadControlBlock {
+pub fn scheduleNewThread(core: *cpu.arch.Core, regs: *platform.Registers, new_thread: *ThreadControlBlock) *ThreadControlBlock {
     if (core.active_thread_list.first) |first| {
         first.data.current_priority +|= 4;
     }
@@ -90,7 +90,7 @@ pub fn scheduleNewThread(core: *cpu.arch.Core, regs: *interrupts.InterruptStackF
 ///
 /// Updates the core's sleep queue, checks if the running thread's time
 /// is up, and if it is, schedules a new one.
-pub fn preempt(regs: *interrupts.InterruptStackFrame) void {
+pub fn preempt(regs: *platform.Registers) void {
     const core = cpu.thisCore();
 
     updateSleepQueue(core);
@@ -107,7 +107,7 @@ pub fn preempt(regs: *interrupts.InterruptStackFrame) void {
 }
 
 /// Sets the current thread's state to "Blocked" and schedules a new one to replace it.
-pub fn block(regs: *interrupts.InterruptStackFrame) *ThreadControlBlock {
+pub fn block(regs: *platform.Registers) *ThreadControlBlock {
     const core = cpu.thisCore();
 
     // fetchNewThread() always returns a thread if should_idle_if_not_found is set to true.
@@ -119,7 +119,7 @@ pub fn block(regs: *interrupts.InterruptStackFrame) *ThreadControlBlock {
 }
 
 /// Puts the current thread to sleep, adding it to the sleep queue, and schedules a new one to replace it.
-pub fn startSleep(regs: *interrupts.InterruptStackFrame, ticks: u64) *ThreadControlBlock {
+pub fn startSleep(regs: *platform.Registers, ticks: u64) *ThreadControlBlock {
     const core = cpu.thisCore();
 
     // fetchNewThread() always returns a thread if should_idle_if_not_found is set to true.

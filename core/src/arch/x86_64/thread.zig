@@ -1,7 +1,7 @@
 const std = @import("std");
-const interrupts = @import("interrupts.zig");
+const platform = @import("platform.zig");
 
-pub inline fn enterThread(regs: *interrupts.InterruptStackFrame, base: u64, directory: u64) noreturn {
+pub inline fn enterThread(regs: *platform.Registers, base: u64, directory: u64) noreturn {
     asm volatile (
         \\ addq %[base], %rsp
         \\ push %[ss]
@@ -54,28 +54,28 @@ pub inline fn readStackPointer() usize {
     );
 }
 
-pub fn setAddress(regs: *interrupts.InterruptStackFrame, address: u64) void {
+pub fn setAddress(regs: *platform.Registers, address: u64) void {
     regs.rip = address;
 }
 
-pub fn setArguments(regs: *interrupts.InterruptStackFrame, arg0: u64, arg1: u64) void {
+pub fn setArguments(regs: *platform.Registers, arg0: u64, arg1: u64) void {
     regs.rdi = arg0;
     regs.rsi = arg1;
 }
 
-pub fn setStack(regs: *interrupts.InterruptStackFrame, stack: u64) void {
+pub fn setStack(regs: *platform.Registers, stack: u64) void {
     regs.rsp = stack;
 }
 
-pub fn initKernelRegisters(regs: *interrupts.InterruptStackFrame) void {
-    regs.* = std.mem.zeroes(interrupts.InterruptStackFrame);
+pub fn initKernelRegisters(regs: *platform.Registers) void {
+    regs.* = std.mem.zeroes(platform.Registers);
     regs.cs = 0x08;
     regs.ss = 0x10;
     regs.rflags = 1 << 9; // IF (Interrupt enable flag)
 }
 
-pub fn initUserRegisters(regs: *interrupts.InterruptStackFrame) void {
-    regs.* = std.mem.zeroes(interrupts.InterruptStackFrame);
+pub fn initUserRegisters(regs: *platform.Registers) void {
+    regs.* = std.mem.zeroes(platform.Registers);
     regs.cs = 0x18 | 3;
     regs.ss = 0x20 | 3;
     regs.rflags = 1 << 9; // IF (Interrupt enable flag)

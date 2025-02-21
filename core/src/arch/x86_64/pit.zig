@@ -1,4 +1,5 @@
 const io = @import("ioports.zig");
+const platform = @import("platform.zig");
 const interrupts = @import("interrupts.zig");
 const pic = @import("pic.zig");
 const thread = @import("../../thread.zig");
@@ -23,6 +24,6 @@ pub fn initializePIT() void {
     _ = interrupts.registerIRQ(0, &pitTimerHandler);
 }
 
-pub fn pitTimerHandler(_: u32, regs: *interrupts.InterruptStackFrame) void {
+pub fn pitTimerHandler(_: u32, regs: *platform.Registers) void {
     thread.preempt(regs);
 }

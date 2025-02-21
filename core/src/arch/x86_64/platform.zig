@@ -6,6 +6,8 @@ const interrupts = @import("interrupts.zig");
 
 pub const PAGE_SIZE = 4096;
 
+pub const Registers = interrupts.InterruptStackFrame;
+
 // FIXME: Check if it's supported first.
 fn enableNX() void {
     asm volatile (

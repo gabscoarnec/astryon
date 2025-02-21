@@ -1,5 +1,5 @@
 const std = @import("std");
-const interrupts = @import("../arch/interrupts.zig").arch;
+const platform = @import("../arch/platform.zig").arch;
 const print = @import("print.zig").print;
 const mem = @import("mem.zig");
 const sched = @import("sched.zig");
@@ -13,11 +13,11 @@ pub const Arguments = struct {
     arg5: usize,
 };
 
-const SystemCall = *const fn (frame: *interrupts.InterruptStackFrame, args: *Arguments, retval: *isize) anyerror!void;
+const SystemCall = *const fn (frame: *platform.Registers, args: *Arguments, retval: *isize) anyerror!void;
 
 const syscalls = [_]SystemCall{ print, mem.allocFrame, mem.lockFrame, mem.freeFrame, sched.yield, sched.setPriority, sched.getPriority, sched.sleep };
 
-pub fn invokeSyscall(number: usize, frame: *interrupts.InterruptStackFrame, args: *Arguments, retval: *isize) void {
+pub fn invokeSyscall(number: usize, frame: *platform.Registers, args: *Arguments, retval: *isize) void {
     if (number >= syscalls.len) {
         retval.* = -1;
         return;
