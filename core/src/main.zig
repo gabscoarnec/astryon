@@ -105,7 +105,6 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
 
     platform.platformEndInit();
 
-    init.state = .Running;
     thread.enterTask(init);
 }
 

@@ -42,6 +42,8 @@ pub fn enterTask(task: *ThreadControlBlock) noreturn {
         table = space.phys;
     }
 
+    task.state = .Running;
+
     arch.enterTask(&task.regs, vmm.PHYSICAL_MAPPING_BASE, table.address);
 }
 
