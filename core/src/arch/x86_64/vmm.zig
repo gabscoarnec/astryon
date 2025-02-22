@@ -234,13 +234,13 @@ pub fn allocAndMap(allocator: *pmm.FrameAllocator, space: AddressSpace, base: u6
     }
 }
 
-fn mapPhysicalMemory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, space: AddressSpace, base: usize, flags: u32) !void {
+fn mapPhysicalMemory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, space: AddressSpace, base: usize, start_addr: usize, flags: u32) !void {
     const address_space_size = mmap.getAddressSpaceSize(tag) orelse return error.InvalidMemoryMap;
     const address_space_pages = address_space_size / HUGE_PAGE_SIZE;
 
     var index: usize = 0;
     while (index < address_space_pages) : (index += 1) {
-        try map(allocator, space, 0, base + index * HUGE_PAGE_SIZE, pmm.PhysFrame{ .address = index * HUGE_PAGE_SIZE }, flags, true);
+        try map(allocator, space, base, start_addr + index * HUGE_PAGE_SIZE, pmm.PhysFrame{ .address = index * HUGE_PAGE_SIZE }, flags, true);
     }
 }
 
@@ -272,12 +272,15 @@ fn setUpKernelPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multi
     const space = AddressSpace.create(table, 0);
 
     try lockPageTable(allocator, space);
-    try mapPhysicalMemory(allocator, tag, space, PHYSICAL_MAPPING_BASE, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.Global));
+    try mapPhysicalMemory(allocator, tag, space, 0, PHYSICAL_MAPPING_BASE, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.Global));
 
     return table;
 }
 
-fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, kernel_table: *PageTable, user_table: *PageTable) !usize {
+pub fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, user_table: *PageTable) !usize {
+    const kernel_space = AddressSpace.create(readPageTable(), PHYSICAL_MAPPING_BASE);
+    const kernel_table = kernel_space.table;
+
     const physical_address_space_size = mmap.getAddressSpaceSize(tag) orelse return error.InvalidMemoryMap;
 
     user_table.* = std.mem.zeroes(PageTable);
@@ -290,21 +293,18 @@ fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.
 
     const space = AddressSpace.create(.{ .address = @intFromPtr(user_table) }, 0);
 
-    try mapPhysicalMemory(allocator, tag, space, user_physical_address_base, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.User));
+    try mapPhysicalMemory(allocator, tag, space, PHYSICAL_MAPPING_BASE, user_physical_address_base, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.User));
 
     return user_physical_address_base;
 }
 
-pub fn createInitialMappings(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, user_table: *PageTable) !usize {
+pub fn createInitialMapping(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t) !void {
     const frame = try setUpKernelPageDirectory(allocator, tag);
     const space = AddressSpace.create(frame, 0);
-    const base = try setUpInitialUserPageDirectory(allocator, tag, space.table, user_table);
 
     setPageTable(space.phys);
 
     allocator.bitmap.location = @ptrFromInt(@as(usize, PHYSICAL_MAPPING_BASE) + @intFromPtr(allocator.bitmap.location));
-
-    return base;
 }
 
 pub fn readPageTable() pmm.PhysFrame {
