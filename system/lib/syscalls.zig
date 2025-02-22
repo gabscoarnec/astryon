@@ -4,7 +4,7 @@ const target = @import("builtin").target;
 fn syscall(num: kernel.SystemCall, arg0: u64, arg1: u64) i64 {
     return switch (target.cpu.arch) {
         .x86_64 => asm volatile ("int $66"
-            : [result] "=r" (-> i64),
+            : [result] "={rax}" (-> i64),
             : [num] "{rax}" (@intFromEnum(num)),
               [arg0] "{rdi}" (arg0),
               [arg1] "{rsi}" (arg1),
