@@ -41,7 +41,7 @@ pub fn sleep(regs: *platform.Registers, args: *sys.Arguments, _: *isize) anyerro
 
 pub fn setEventQueue(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
     const core = cpu.thisCore();
-    if (!sys.checkToken(core, system.kernel.Token.EventQueue)) return error.NotAuthorized;
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
     const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 
     if (target.event_queue) |_| return error.ThreadQueueAlreadySet;
@@ -53,4 +53,56 @@ pub fn setEventQueue(_: *platform.Registers, args: *sys.Arguments, _: *isize) an
     const data: [*]u8 = @ptrFromInt(virt);
 
     target.event_queue = RingBuffer.init(data, platform.PAGE_SIZE, true);
+}
+
+pub fn createThread(_: *platform.Registers, _: *sys.Arguments, result: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+
+    const allocator = pmm.lockGlobalAllocator();
+    defer pmm.unlockGlobalAllocator();
+
+    const child = try thread.createThreadControlBlock(allocator);
+    thread.arch.initUserRegisters(&child.regs);
+
+    result.* = @bitCast(child.id);
+}
+
+pub fn setThreadEntry(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+
+    thread.arch.setAddress(&target.regs, args.arg1);
+}
+
+pub fn setThreadArguments(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+
+    thread.arch.setArguments(&target.regs, args.arg1, args.arg2);
+}
+
+pub fn setThreadStack(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+
+    thread.arch.setStack(&target.regs, args.arg1);
+}
+
+pub fn startThread(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+
+    if (target.state != .Inactive) return;
+
+    thread.reviveThread(core, target);
+}
+
+pub fn getThreadId(_: *platform.Registers, _: *sys.Arguments, result: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    result.* = @bitCast(core.current_thread.id);
 }

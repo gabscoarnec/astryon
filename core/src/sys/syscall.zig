@@ -29,6 +29,13 @@ const syscalls = [_]SystemCall{
     sched.sleep,
     sched.setEventQueue,
     tokens.setTokens,
+    mem.setAddressSpace,
+    sched.createThread,
+    sched.setThreadEntry,
+    sched.setThreadArguments,
+    sched.setThreadStack,
+    sched.startThread,
+    sched.getThreadId,
 };
 
 pub fn invokeSyscall(number: usize, frame: *platform.Registers, args: *Arguments, retval: *isize) void {

@@ -40,7 +40,7 @@ pub fn lockFrame(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerr
 
 pub fn setAddressSpace(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
     const core = cpu.thisCore();
-    if (!sys.checkToken(core, system.kernel.Token.VirtualMemory)) return error.NotAuthorized;
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
 
     const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 

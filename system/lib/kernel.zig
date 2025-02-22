@@ -7,17 +7,22 @@ pub const SystemCall = enum(u64) {
     SetPriority, // requires Token.ThreadPriority
     GetPriority,
     Sleep,
-    SetEventQueue, // requires Token.EventQueue
+    SetEventQueue, // requires Token.CreateProcess
     SetTokens, // requires Token.Root
-    SetAddressSpace, // requires Token.VirtualMemory
+    SetAddressSpace, // requires Token.CreateProcess
+    CreateThread, // requires Token.CreateProcess
+    SetThreadEntry, // requires Token.CreateProcess
+    SetThreadArguments, // requires Token.CreateProcess
+    SetThreadStack, // requires Token.CreateProcess
+    StartThread, // requires Token.CreateProcess
+    GetThreadId,
 };
 
 pub const Token = enum(u64) {
     Root = 1 << 0,
     PhysicalMemory = 1 << 1,
     ThreadPriority = 1 << 2,
-    EventQueue = 1 << 3,
-    VirtualMemory = 1 << 4,
+    CreateProcess = 1 << 3,
 };
 
 pub const SystemError = error{
