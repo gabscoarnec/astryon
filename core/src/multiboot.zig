@@ -68,7 +68,7 @@ pub fn findMultibootTag(comptime Type: type, info: MultibootInfo) ?*Type {
 }
 
 /// Find every multiboot tag of the given type.
-pub fn findMultibootTags(comptime Type: type, info: MultibootInfo, callback: *const fn (tag: *Type, ctx: *const anyopaque) void, ctx: *const anyopaque) void {
+pub fn findMultibootTags(comptime Type: type, info: MultibootInfo, callback: *const fn (tag: *Type, ctx: *anyopaque) void, ctx: *anyopaque) void {
     const mb_tag: *easyboot.multiboot_info_t = @alignCast(@ptrCast(info));
     const mb_size = mb_tag.total_size;
 
