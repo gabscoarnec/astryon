@@ -1,7 +1,5 @@
 const std = @import("std");
-const system = @import("system");
-
-const syscalls = system.syscalls;
+const syscalls = @import("../../syscalls.zig");
 
 const MapError = error{
     MemoryAlreadyInUse,

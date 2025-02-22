@@ -1,6 +1,6 @@
 const system = @import("system");
-const vm = @import("arch/vm.zig");
 
+const vm = system.vm;
 const syscalls = system.syscalls;
 const buffer = system.ring_buffer;
 
