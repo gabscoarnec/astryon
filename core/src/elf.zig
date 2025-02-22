@@ -61,8 +61,6 @@ fn canWriteSegment(flags: u32) bool {
 pub fn loadElf(allocator: *pmm.FrameAllocator, space: vmm.AddressSpace, base_address: pmm.PhysFrame) !usize {
     const address = base_address.virtualAddress(vmm.PHYSICAL_MAPPING_BASE);
 
-    debug.print("Address: {}\n", .{address});
-
     const elf_header: *Elf64_Ehdr = @ptrFromInt(address);
 
     debug.print("ELF header: {}\n", .{elf_header});
@@ -102,10 +100,7 @@ pub fn loadElf(allocator: *pmm.FrameAllocator, space: vmm.AddressSpace, base_add
     var i: usize = 0;
     var program_header: *align(1) Elf64_Phdr = @ptrFromInt(address + elf_header.e_phoff);
 
-    debug.print("Program header address: {x}\n", .{address + elf_header.e_phoff});
-
     while (i < elf_header.e_phnum) {
-        debug.print("Program header: {}\n", .{program_header.*});
         if (program_header.p_type == PT_LOAD) {
             debug.print("ELF: Loading segment (offset={d}, base={x}, filesize={d}, memsize={d})\n", .{ program_header.p_offset, program_header.p_vaddr, program_header.p_filesz, program_header.p_memsz });
 
@@ -133,8 +128,6 @@ pub fn loadElf(allocator: *pmm.FrameAllocator, space: vmm.AddressSpace, base_add
         i += 1;
 
         const new_address = address + elf_header.e_phoff + (i * elf_header.e_phentsize);
-
-        debug.print("Program header address: {x}\n", .{new_address});
 
         program_header = @ptrFromInt(new_address);
     }
