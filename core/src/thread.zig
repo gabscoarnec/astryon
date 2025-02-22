@@ -314,7 +314,7 @@ pub fn lookupThreadById(id: u64) ?*ThreadControlBlock {
 
     var it: ?*GlobalThreadList.Node = global_thread_list.first;
     while (it) |n| : (it = n.next) {
-        const thread: *ThreadControlBlock = @fieldParentPtr("tag", n);
+        const thread: *ThreadControlBlock = @alignCast(@fieldParentPtr("tag", n));
         if (thread.id == id) return thread;
     }
 
