@@ -1,4 +1,4 @@
-const platform = @import("../arch/platform.zig").arch;
+const platform = @import("../arch/platform.zig");
 const sys = @import("syscall.zig");
 const debug = @import("../arch/debug.zig");
 

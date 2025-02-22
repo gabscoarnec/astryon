@@ -1,7 +1,7 @@
 const std = @import("std");
 const target = @import("builtin").target;
-const vmm = @import("arch/vmm.zig").arch;
-const platform = @import("arch/platform.zig").arch;
+const vmm = @import("arch/vmm.zig");
+const platform = @import("arch/platform.zig");
 const pmm = @import("pmm.zig");
 const debug = @import("arch/debug.zig");
 

@@ -1,14 +1,14 @@
 const std = @import("std");
 const system = @import("system");
-const vmm = @import("arch/vmm.zig").arch;
-const platform = @import("arch/platform.zig").arch;
+const vmm = @import("arch/vmm.zig");
+const platform = @import("arch/platform.zig");
 const pmm = @import("pmm.zig");
 const cpu = @import("arch/cpu.zig");
 const locking = @import("lib/spinlock.zig");
 
 const RingBuffer = system.ring_buffer.RingBuffer;
 
-pub const arch = @import("arch/thread.zig").arch;
+pub const arch = @import("arch/thread.zig");
 
 pub const ThreadState = enum {
     Inactive,

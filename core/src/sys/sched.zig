@@ -1,11 +1,11 @@
 const std = @import("std");
 const system = @import("system");
-const platform = @import("../arch/platform.zig").arch;
+const platform = @import("../arch/platform.zig");
 const sys = @import("syscall.zig");
 const thread = @import("../thread.zig");
 const cpu = @import("../arch/cpu.zig");
 const pmm = @import("../pmm.zig");
-const vmm = @import("../arch/vmm.zig").arch;
+const vmm = @import("../arch/vmm.zig");
 
 const RingBuffer = system.ring_buffer.RingBuffer;
 

@@ -1,5 +1,5 @@
 const system = @import("system");
-const vm = @import("arch/vm.zig").arch;
+const vm = @import("arch/vm.zig");
 
 const syscalls = system.syscalls;
 const buffer = system.ring_buffer;
@@ -32,17 +32,16 @@ export fn _start(base: u64, address: u64) callconv(.C) noreturn {
         while (true) {}
     };
 
-    var event_queue = setupKernelRingBuffer(base) catch {
+    const event_queue = setupKernelRingBuffer(base) catch {
         while (true) {}
     };
+
+    _ = event_queue;
 
     var counter: u64 = 0;
 
     while (true) : (counter += 4) {
         syscalls.sleep(1000);
-
-        // Reading a random number from the ring buffer we share with the kernel :D
-        var data: [1]u8 = .{0};
-        if (event_queue.read(@ptrCast(&data), 1)) syscalls.print(data[0]);
+        syscalls.print(counter);
     }
 }

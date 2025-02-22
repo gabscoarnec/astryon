@@ -2,8 +2,8 @@ const std = @import("std");
 const target = @import("builtin").target;
 const thread = @import("../thread.zig");
 const pmm = @import("../pmm.zig");
-const vmm = @import("vmm.zig").arch;
-const platform = @import("platform.zig").arch;
+const vmm = @import("vmm.zig");
+const platform = @import("platform.zig");
 
 pub const arch = switch (target.cpu.arch) {
     .x86_64 => @import("x86_64/cpu.zig"),
