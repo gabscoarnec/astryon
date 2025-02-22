@@ -1,15 +1,15 @@
 pub const SystemCall = enum(u64) {
     Print,
-    AllocFrame,
-    LockFrame,
-    FreeFrame,
+    AllocFrame, // requires Token.PhysicalMemory
+    LockFrame, // requires Token.PhysicalMemory
+    FreeFrame, // requires Token.PhysicalMemory
     Yield,
-    SetPriority,
+    SetPriority, // requires Token.ThreadPriority
     GetPriority,
     Sleep,
-    SetEventQueue,
-    SetTokens,
-    SetAddressSpace,
+    SetEventQueue, // requires Token.EventQueue
+    SetTokens, // requires Token.Root
+    SetAddressSpace, // requires Token.VirtualMemory
 };
 
 pub const Token = enum(u64) {
