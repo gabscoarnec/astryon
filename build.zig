@@ -7,8 +7,12 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    core.build(b, build_step, optimize);
-    system.build(b, build_step, optimize);
+    const system_module = b.addModule("system", .{
+        .root_source_file = b.path("system/lib/system.zig"),
+    });
+
+    core.buildAsSubmodule(b, build_step, optimize, system_module);
+    system.buildAsSubmodule(b, build_step, optimize, system_module);
 
     b.default_step = build_step;
 }

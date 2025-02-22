@@ -2,7 +2,7 @@ const std = @import("std");
 
 const here = "core";
 
-pub fn build(b: *std.Build, build_step: *std.Build.Step, optimize: std.builtin.OptimizeMode) void {
+pub fn buildAsSubmodule(b: *std.Build, build_step: *std.Build.Step, optimize: std.builtin.OptimizeMode, system_module: *std.Build.Module) void {
     var disabled_features = std.Target.Cpu.Feature.Set.empty;
     var enabled_features = std.Target.Cpu.Feature.Set.empty;
 
@@ -37,6 +37,8 @@ pub fn build(b: *std.Build, build_step: *std.Build.Step, optimize: std.builtin.O
             .override = .{ .custom = "boot/" },
         },
     });
+
+    core.root_module.addImport("system", system_module);
 
     var kernel_step = b.step("core", "Build the core microkernel");
     kernel_step.dependOn(&core.step);
