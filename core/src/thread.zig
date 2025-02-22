@@ -1,9 +1,12 @@
 const std = @import("std");
+const system = @import("system");
 const vmm = @import("arch/vmm.zig").arch;
 const platform = @import("arch/platform.zig").arch;
 const pmm = @import("pmm.zig");
 const cpu = @import("arch/cpu.zig");
 const locking = @import("lib/spinlock.zig");
+
+const RingBuffer = system.ring_buffer.RingBuffer;
 
 pub const arch = @import("arch/thread.zig").arch;
 
@@ -20,6 +23,7 @@ pub const ThreadControlBlock = struct {
     regs: platform.Registers,
     state: ThreadState,
     user_priority: u8,
+    event_queue: ?RingBuffer,
 
     // Managed by addThreadToGlobalList(), no need to set manually.
     tag: GlobalThreadList.Node,
@@ -146,6 +150,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
     thread.state = .Inactive;
     thread.user_priority = 127;
+    thread.event_queue = null;
 
     addThreadToGlobalList(thread);
 

@@ -30,6 +30,7 @@ pub fn setupCore(allocator: *pmm.FrameAllocator) !void {
     idle_thread.regs = std.mem.zeroes(@TypeOf(idle_thread.regs));
     idle_thread.state = .Running;
     idle_thread.user_priority = 0;
+    idle_thread.event_queue = null;
     thread.arch.initKernelRegisters(&idle_thread.regs);
     thread.arch.setAddress(&idle_thread.regs, @intFromPtr(&thread.arch.idleLoop));
 
