@@ -1,5 +1,7 @@
 const std = @import("std");
-const kernel = @import("../../kernel.zig");
+const system = @import("system");
+
+const syscalls = system.syscalls;
 
 const MapError = error{
     MemoryAlreadyInUse,
@@ -7,7 +9,7 @@ const MapError = error{
     OutOfMemory,
 };
 
-const PhysFrame = struct {
+pub const PhysFrame = struct {
     address: u64,
 
     pub fn virtualAddress(self: *const PhysFrame, base: usize) usize {
@@ -105,7 +107,7 @@ fn updatePageTableEntry(entry: *PageTableEntry, phys: PhysFrame, flags: u32) voi
 fn setUpParentPageTableEntry(mapper: *const MemoryMapper, pte: *PageTableEntry, flags: u32) !void {
     if (pte.present == 0) {
         pte.clear();
-        const frame = PhysFrame{ .address = try kernel.allocFrame() };
+        const frame = PhysFrame{ .address = try syscalls.allocFrame() };
         pte.present = 1;
         pte.setAddress(frame.address);
         getTable(mapper, pte).* = std.mem.zeroes(PageDirectory);
