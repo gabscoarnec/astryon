@@ -12,6 +12,7 @@ const RingBuffer = system.ring_buffer.RingBuffer;
 const SyscallError = error{
     NoSuchThread,
     ThreadQueueAlreadySet,
+    NotAuthorized,
 };
 
 pub fn yield(regs: *platform.Registers, _: *sys.Arguments, _: *isize) anyerror!void {
@@ -23,6 +24,9 @@ pub fn yield(regs: *platform.Registers, _: *sys.Arguments, _: *isize) anyerror!v
 
 pub fn setPriority(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
     const core = cpu.thisCore();
+
+    if (!sys.checkToken(core, system.kernel.Token.ThreadPriority)) return error.NotAuthorized;
+
     core.current_thread.user_priority = @truncate(args.arg0);
 }
 
@@ -36,6 +40,8 @@ pub fn sleep(regs: *platform.Registers, args: *sys.Arguments, _: *isize) anyerro
 }
 
 pub fn setEventQueue(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.EventQueue)) return error.NotAuthorized;
     const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 
     if (target.event_queue) |_| return error.ThreadQueueAlreadySet;

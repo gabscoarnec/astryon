@@ -51,3 +51,8 @@ pub fn setEventQueue(pid: u64, address: u64) !void {
     const retval = syscall(.SetEventQueue, pid, address);
     if (retval < 0) return error.NoSuchThread;
 }
+
+pub fn setTokens(pid: u64, tokens: u64) !void {
+    const retval = syscall(.SetTokens, pid, tokens);
+    if (retval < 0) return error.NoSuchThread;
+}

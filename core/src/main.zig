@@ -1,4 +1,5 @@
 const std = @import("std");
+const system = @import("system");
 const easyboot = @cImport(@cInclude("easyboot.h"));
 const debug = @import("arch/debug.zig");
 const cpu = @import("arch/cpu.zig");
@@ -70,6 +71,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
 
     init.address_space = space;
     init.user_priority = 255;
+    init.tokens = @intFromEnum(system.kernel.Token.Root);
     thread.arch.initUserRegisters(&init.regs);
     thread.arch.setArguments(&init.regs, base, space.phys.address);
 

@@ -24,6 +24,7 @@ pub const ThreadControlBlock = struct {
     state: ThreadState,
     user_priority: u8,
     event_queue: ?RingBuffer,
+    tokens: u64,
 
     // Managed by addThreadToGlobalList(), no need to set manually.
     tag: GlobalThreadList.Node,
@@ -151,6 +152,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.state = .Inactive;
     thread.user_priority = 127;
     thread.event_queue = null;
+    thread.tokens = 0;
 
     addThreadToGlobalList(thread);
 
