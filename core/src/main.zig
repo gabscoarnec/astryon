@@ -13,51 +13,11 @@ const elf = @import("elf.zig");
 
 const MultibootInfo = [*c]u8;
 
-fn adjustAddressToPageBoundary(address: *usize, size: *usize) void {
-    const diff = address.* % platform.PAGE_SIZE;
-
-    address.* -= diff;
-    size.* += diff;
+export fn _start(_: u32, _: MultibootInfo) callconv(.C) noreturn {
+    platform._start();
 }
 
-fn reserveMultibootMemory(allocator: *pmm.FrameAllocator, info: MultibootInfo) !void {
-    const info_tag: *easyboot.multiboot_info_t = @alignCast(@ptrCast(info));
-
-    var address: usize = @intFromPtr(info);
-    var size: usize = info_tag.total_size;
-    adjustAddressToPageBoundary(&address, &size);
-
-    debug.print("Locking multiboot memory at {x}, {d} bytes\n", .{ address, size });
-
-    try pmm.lockFrames(allocator, address, try std.math.divCeil(usize, size, platform.PAGE_SIZE));
-
-    const Context = struct {
-        allocator: *pmm.FrameAllocator,
-    };
-
-    var ctx = Context{ .allocator = allocator };
-
-    multiboot.findMultibootTags(easyboot.multiboot_tag_module_t, @ptrCast(info), struct {
-        fn reserveMemory(mod: *easyboot.multiboot_tag_module_t, context: *const Context) !void {
-            var mod_address: usize = mod.mod_start;
-            var mod_size: usize = mod.mod_end - mod.mod_start;
-            adjustAddressToPageBoundary(&mod_address, &mod_size);
-
-            debug.print("Locking memory for module {s} at address {x}, {d} bytes\n", .{ mod.string(), mod_address, mod_size });
-
-            try pmm.lockFrames(context.allocator, mod_address, try std.math.divCeil(usize, mod_size, platform.PAGE_SIZE));
-        }
-
-        fn handler(mod: *easyboot.multiboot_tag_module_t, context: *const anyopaque) void {
-            reserveMemory(mod, @alignCast(@ptrCast(context))) catch |err| {
-                debug.print("Error while reserving multiboot memory {s}: {}\n", .{ mod.string(), err });
-                while (true) {}
-            };
-        }
-    }.handler, &ctx);
-}
-
-export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
+export fn main(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
     interrupts.disableInterrupts();
 
     if (magic != easyboot.MULTIBOOT2_BOOTLOADER_MAGIC) {
@@ -80,7 +40,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
         while (true) {}
     };
 
-    reserveMultibootMemory(&allocator, info) catch |err| {
+    pmm.reserveMultibootMemory(&allocator, info) catch |err| {
         debug.print("Error while reserving multiboot memory: {}\n", .{err});
         while (true) {}
     };
@@ -108,7 +68,7 @@ export fn _start(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
             const frame = try pmm.allocFrame(context.allocator);
             const space = vmm.AddressSpace.create(frame, vmm.PHYSICAL_MAPPING_BASE);
 
-            const base = try vmm.setUpInitialUserPageDirectory(context.allocator, context.mmap, space.table);
+            const base = try vmm.setUpInitialUserPageDirectory(context.allocator, context.mmap, space);
 
             const module = try thread.createThreadControlBlock(context.allocator);
 

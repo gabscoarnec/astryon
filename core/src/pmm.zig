@@ -5,6 +5,8 @@ const vmm = @import("arch/vmm.zig");
 const mmap = @import("mmap.zig");
 const bmap = @import("lib/bitmap.zig");
 const locking = @import("lib/spinlock.zig");
+const debug = @import("arch/debug.zig");
+const multiboot = @import("multiboot.zig");
 
 const FrameAllocatorError = error{
     InvalidMemoryMap,
@@ -104,7 +106,72 @@ pub fn initializeFrameAllocator(tag: *easyboot.multiboot_tag_mmap_t) !FrameAlloc
     // Avoid causing trouble.
     try lockFrame(&allocator, 0);
 
+    try reserveKernelMemory(&allocator);
+
     return allocator;
+}
+
+fn adjustAddressToPageBoundary(address: *usize, size: *usize) void {
+    const diff = address.* % platform.PAGE_SIZE;
+
+    address.* -= diff;
+    size.* += diff;
+}
+
+extern const kernel_start: [*]u8;
+extern const kernel_end: [*]u8;
+
+fn reserveKernelMemory(allocator: *FrameAllocator) !void {
+    debug.print("Kernel begins at {*} and ends at {*}\n", .{ &kernel_start, &kernel_end });
+
+    const start: usize = @intFromPtr(&kernel_start);
+    const end: usize = @intFromPtr(&kernel_end);
+    const pages = try std.math.divCeil(usize, end - start, platform.PAGE_SIZE);
+
+    const page_table = vmm.readPageTable();
+    const space = vmm.AddressSpace.create(page_table, 0);
+
+    var i: usize = 0;
+    while (i < pages) : (i += 1) {
+        try lockFrame(allocator, vmm.getAddress(space, 0, start + (i * platform.PAGE_SIZE)).?);
+    }
+}
+
+pub fn reserveMultibootMemory(allocator: *FrameAllocator, info: [*c]u8) !void {
+    const info_tag: *easyboot.multiboot_info_t = @alignCast(@ptrCast(info));
+
+    var address: usize = @intFromPtr(info);
+    var size: usize = info_tag.total_size;
+    adjustAddressToPageBoundary(&address, &size);
+
+    debug.print("Locking multiboot memory at {x}, {d} bytes\n", .{ address, size });
+
+    try lockFrames(allocator, address, try std.math.divCeil(usize, size, platform.PAGE_SIZE));
+
+    const Context = struct {
+        allocator: *FrameAllocator,
+    };
+
+    var ctx = Context{ .allocator = allocator };
+
+    multiboot.findMultibootTags(easyboot.multiboot_tag_module_t, @ptrCast(info), struct {
+        fn reserveMemory(mod: *easyboot.multiboot_tag_module_t, context: *const Context) !void {
+            var mod_address: usize = mod.mod_start;
+            var mod_size: usize = mod.mod_end - mod.mod_start;
+            adjustAddressToPageBoundary(&mod_address, &mod_size);
+
+            debug.print("Locking memory for module {s} at address {x}, {d} bytes\n", .{ mod.string(), mod_address, mod_size });
+
+            try lockFrames(context.allocator, mod_address, try std.math.divCeil(usize, mod_size, platform.PAGE_SIZE));
+        }
+
+        fn handler(mod: *easyboot.multiboot_tag_module_t, context: *const anyopaque) void {
+            reserveMemory(mod, @alignCast(@ptrCast(context))) catch |err| {
+                debug.print("Error while reserving multiboot memory {s}: {}\n", .{ mod.string(), err });
+                while (true) {}
+            };
+        }
+    }.handler, &ctx);
 }
 
 var lock: locking.SpinLock = .{};

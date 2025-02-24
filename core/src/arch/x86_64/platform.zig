@@ -1,3 +1,4 @@
+const std = @import("std");
 const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
 const pic = @import("pic.zig");
@@ -16,6 +17,21 @@ fn enableNX() void {
         \\ or $0x800, %eax
         \\ wrmsr
     );
+}
+
+var stack: [PAGE_SIZE * 8]u8 = std.mem.zeroes([PAGE_SIZE * 8]u8);
+const top: usize = (PAGE_SIZE * 8) - 16;
+
+pub inline fn _start() noreturn {
+    asm volatile (
+        \\ mov %[stack], %rsp
+        \\ addq %[top], %rsp
+        \\ call main
+        :
+        : [stack] "i" (&stack),
+          [top] "i" (top),
+    );
+    unreachable;
 }
 
 // Initialize platform-specific components.

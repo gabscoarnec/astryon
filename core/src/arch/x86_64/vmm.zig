@@ -3,6 +3,7 @@ const easyboot = @cImport(@cInclude("easyboot.h"));
 const mmap = @import("../../mmap.zig");
 const pmm = @import("../../pmm.zig");
 const platform = @import("platform.zig");
+const debug = @import("../debug.zig");
 
 const USER_ADDRESS_RANGE_END = 0x0000_7fff_ffff_ffff;
 pub const PHYSICAL_MAPPING_BASE = 0xffff_8000_0000_0000;
@@ -151,6 +152,11 @@ pub fn getEntry(space: AddressSpace, base: usize, virt_address: u64) ?*PageTable
     return pt_entry;
 }
 
+pub fn getAddress(space: AddressSpace, base: usize, virt_address: u64) ?usize {
+    const entry = getEntry(space, base, virt_address) orelse return null;
+    return entry.getAddress();
+}
+
 pub fn copyToUser(space: AddressSpace, base: usize, user: usize, kernel: [*]const u8, size: usize) !void {
     const remainder: usize = @rem(user, platform.PAGE_SIZE);
     const user_page = user - remainder;
@@ -277,21 +283,19 @@ fn setUpKernelPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multi
     return table;
 }
 
-pub fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, user_table: *PageTable) !usize {
+pub fn setUpInitialUserPageDirectory(allocator: *pmm.FrameAllocator, tag: *easyboot.multiboot_tag_mmap_t, space: AddressSpace) !usize {
     const kernel_space = AddressSpace.create(readPageTable(), PHYSICAL_MAPPING_BASE);
     const kernel_table = kernel_space.table;
 
     const physical_address_space_size = mmap.getAddressSpaceSize(tag) orelse return error.InvalidMemoryMap;
 
-    user_table.* = std.mem.zeroes(PageTable);
+    space.table.* = std.mem.zeroes(PageTable);
 
     const directory_upper_half: *[256]PageTableEntry = kernel_table.entries[256..];
-    const user_directory_upper_half: *[256]PageTableEntry = user_table.entries[256..];
+    const user_directory_upper_half: *[256]PageTableEntry = space.table.entries[256..];
     @memcpy(user_directory_upper_half, directory_upper_half);
 
     const user_physical_address_base = (USER_ADDRESS_RANGE_END + 1) - physical_address_space_size;
-
-    const space = AddressSpace.create(.{ .address = @intFromPtr(user_table) }, 0);
 
     try mapPhysicalMemory(allocator, tag, space, PHYSICAL_MAPPING_BASE, user_physical_address_base, @intFromEnum(Flags.ReadWrite) | @intFromEnum(Flags.NoExecute) | @intFromEnum(Flags.User));
 
