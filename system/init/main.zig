@@ -25,22 +25,22 @@ fn setTokens() void {
     syscalls.setTokens(syscalls.getThreadId(), tokens) catch {};
 }
 
+fn discoverThreadLimit() u64 {
+    var pid: u64 = 1;
+    while (true) {
+        _ = syscalls.getPriority(pid) catch return (pid - 1);
+        pid += 1;
+    }
+}
+
 export fn _start(base: u64, address: u64) callconv(.C) noreturn {
     setTokens();
 
     const mapper = vm.MemoryMapper.create(.{ .address = address }, base);
+    _ = mapper;
 
-    syscalls.print(base);
-    syscalls.print(address);
-    syscalls.print(@intFromPtr(mapper.directory));
-
-    const phys = syscalls.allocFrame() catch {
-        while (true) {}
-    };
-
-    vm.map(&mapper, 0x6000000, .{ .address = phys }, @intFromEnum(vm.Flags.ReadWrite) | @intFromEnum(vm.Flags.User)) catch {
-        while (true) {}
-    };
+    const threads = discoverThreadLimit();
+    syscalls.print(threads);
 
     const event_queue = setupKernelRingBuffer(base) catch {
         while (true) {}
