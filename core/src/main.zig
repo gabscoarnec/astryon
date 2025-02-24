@@ -88,8 +88,8 @@ export fn main(magic: u32, info: MultibootInfo) callconv(.C) noreturn {
             const stack = try elf.allocateStack(context.allocator, space, base - platform.PAGE_SIZE, default_stack_size);
             thread.arch.setStack(&module.regs, stack);
 
-            const init_name = "init";
-            if (std.mem.eql(u8, init_name[0..init_name.len], mod.string()[0..init_name.len])) context.init = module;
+            const init_path = "astryon/init";
+            if (std.mem.eql(u8, init_path[0..init_path.len], mod.string()[0..init_path.len])) context.init = module;
         }
 
         fn handler(mod: *easyboot.multiboot_tag_module_t, context: *anyopaque) void {

@@ -1,6 +1,6 @@
 **/.zig-cache
 boot/core
-boot/init
+boot/astryon/**
 tools/bin/
 tools/include/
 tools/share/

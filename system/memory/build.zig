@@ -33,7 +33,7 @@ pub fn buildAsSubmodule(b: *std.Build, build_step: *std.Build.Step, optimize: st
 
     const install = b.addInstallArtifact(memory, .{
         .dest_dir = .{
-            .override = .{ .custom = "boot/" },
+            .override = .{ .custom = "boot/astryon/" },
         },
     });
 
