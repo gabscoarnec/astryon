@@ -24,15 +24,15 @@ pub fn yield(regs: *platform.Registers, _: *sys.Arguments, _: *isize) anyerror!v
 
 pub fn setPriority(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
     const core = cpu.thisCore();
-
     if (!sys.checkToken(core, system.kernel.Token.ThreadPriority)) return error.NotAuthorized;
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 
-    core.current_thread.user_priority = @truncate(args.arg0);
+    target.user_priority = @truncate(args.arg1);
 }
 
-pub fn getPriority(_: *platform.Registers, _: *sys.Arguments, retval: *isize) anyerror!void {
-    const core = cpu.thisCore();
-    retval.* = core.current_thread.user_priority;
+pub fn getPriority(_: *platform.Registers, args: *sys.Arguments, retval: *isize) anyerror!void {
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+    retval.* = target.user_priority;
 }
 
 pub fn sleep(regs: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {

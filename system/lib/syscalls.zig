@@ -36,12 +36,15 @@ pub fn yield() void {
     _ = syscall(.Yield, 0, 0, 0);
 }
 
-pub fn setPriority(priority: u8) void {
-    _ = syscall(.SetPriority, priority, 0, 0);
+pub fn setPriority(pid: u64, priority: u8) !void {
+    const retval = syscall(.SetPriority, pid, priority, 0);
+    if (retval < 0) return error.NoSuchThread;
 }
 
-pub fn getPriority() u8 {
-    return @truncate(@as(u64, @bitCast(syscall(.GetPriority, 0, 0, 0))));
+pub fn getPriority(pid: u64) !u8 {
+    const retval = syscall(.GetPriority, pid, 0, 0);
+    if (retval < 0) return error.NoSuchThread;
+    return @truncate(@as(u64, @bitCast(retval)));
 }
 
 pub fn sleep(ms: u64) void {
