@@ -16,6 +16,7 @@ pub const SystemCall = enum(u64) {
     SetThreadStack, // requires Token.CreateProcess
     StartThread, // requires Token.CreateProcess
     GetThreadId,
+    GetAddressSpace, // requires Token.CreateProcess
 };
 
 pub const Token = enum(u64) {

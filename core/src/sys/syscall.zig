@@ -36,6 +36,7 @@ const syscalls = [_]SystemCall{
     sched.setThreadStack,
     sched.startThread,
     sched.getThreadId,
+    mem.getAddressSpace,
 };
 
 pub fn invokeSyscall(number: usize, frame: *platform.Registers, args: *Arguments, retval: *isize) void {

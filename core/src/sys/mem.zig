@@ -46,3 +46,14 @@ pub fn setAddressSpace(_: *platform.Registers, args: *sys.Arguments, _: *isize) 
 
     target.address_space = vmm.AddressSpace.create(.{ .address = args.arg1 }, vmm.PHYSICAL_MAPPING_BASE);
 }
+
+pub fn getAddressSpace(_: *platform.Registers, args: *sys.Arguments, result: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
+
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
+
+    const space = target.address_space orelse return error.NoAddressSpace;
+
+    result.* = @bitCast(space.phys.address);
+}

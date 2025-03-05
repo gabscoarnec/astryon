@@ -95,3 +95,9 @@ pub fn startThread(pid: u64) !void {
 pub fn getThreadId() u64 {
     return @bitCast(syscall(.GetThreadId, 0, 0, 0));
 }
+
+pub fn getAddressSpace(pid: u64) !u64 {
+    const retval = syscall(.GetAddressSpace, pid, 0, 0);
+    if (retval < 0) return error.NoSuchThread;
+    return @bitCast(retval);
+}
