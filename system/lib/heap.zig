@@ -78,10 +78,10 @@ const MEMORY_BLOCK_FREE_TAG = 0xffeeffcc;
 const MEMORY_BLOCK_USED_TAG = 0xee55ee66;
 
 const MemoryBlockStatus = enum(u16) {
-    BlockDefault = 0,
-    BlockUsed = 1 << 0,
-    BlockStartOfMemory = 1 << 1,
-    BlockEndOfMemory = 1 << 2,
+    Default = 0,
+    Used = 1 << 0,
+    StartOfMemoryRange = 1 << 1,
+    EndOfMemoryRange = 1 << 2,
 };
 
 const MemoryBlockTag = packed struct {
@@ -124,7 +124,7 @@ pub const SystemAllocator = struct {
     }
 
     fn isBlockFree(block: *MemoryBlockList.Node) bool {
-        return (block.data.status & @intFromEnum(MemoryBlockStatus.BlockUsed)) == 0;
+        return (block.data.status & @intFromEnum(MemoryBlockStatus.Used)) == 0;
     }
 
     fn checkStatus(block: *MemoryBlockList.Node, status: MemoryBlockStatus) bool {
@@ -150,17 +150,36 @@ pub const SystemAllocator = struct {
         return object_address - @sizeOf(MemoryBlockList.Node);
     }
 
+    fn alignOffset(block: *MemoryBlockList.Node, offset: usize, alignment: usize) usize {
+        var block_address = @intFromPtr(ptrFromBlockNode(block)) + offset;
+
+        block_address = alignBlockAddressDownwards(block_address, alignment);
+
+        return block_address - @intFromPtr(ptrFromBlockNode(block));
+    }
+
+    fn getFairSplitOffset(block: *MemoryBlockList.Node, min: usize, alignment: usize) ?u64 {
+        var available = spaceAvailable(block);
+
+        available -= min; // reserve at least min size for the new block.
+        available -= @divTrunc(available, 2); // reserve half of the rest for the new block, while still leaving another half for the old one.
+        available -= @rem(available, 16); // Everything has to be aligned on a 16-byte boundary
+
+        const block_offset = alignOffset(block, available + block.data.used, alignment);
+        if (block_offset < block.data.used) return null;
+
+        return block_offset;
+    }
+
     fn getSplitOffset(block: *MemoryBlockList.Node, min: usize, alignment: usize) ?u64 {
+        if (getFairSplitOffset(block, min, alignment)) |offset| return offset;
+        // Otherwise, allocate space at the end of the block.
+
         var available = spaceAvailable(block);
 
         available -= min; // reserve only min size for the new block.
 
-        var block_offset = available + block.data.used;
-        var block_address = @intFromPtr(ptrFromBlockNode(block)) + block_offset;
-
-        block_address = alignBlockAddressDownwards(block_address, alignment);
-
-        block_offset = block_address - @intFromPtr(ptrFromBlockNode(block));
+        const block_offset = alignOffset(block, available + block.data.used, alignment);
         if (block_offset < block.data.used) return null;
 
         return block_offset;
@@ -180,10 +199,10 @@ pub const SystemAllocator = struct {
 
         new_node.data.tag = MEMORY_BLOCK_USED_TAG;
 
-        if (checkStatus(block, MemoryBlockStatus.BlockEndOfMemory)) {
-            new_node.data.status = @intFromEnum(MemoryBlockStatus.BlockEndOfMemory);
+        if (checkStatus(block, MemoryBlockStatus.EndOfMemoryRange)) {
+            new_node.data.status = @intFromEnum(MemoryBlockStatus.EndOfMemoryRange);
         } else {
-            new_node.data.status = @intFromEnum(MemoryBlockStatus.BlockDefault);
+            new_node.data.status = @intFromEnum(MemoryBlockStatus.Default);
         }
 
         new_node.data.allocated = old_size - (offset + @sizeOf(MemoryBlockList.Node));
@@ -192,46 +211,46 @@ pub const SystemAllocator = struct {
 
         list.insertAfter(block, new_node);
 
-        block.data.status &= ~@intFromEnum(MemoryBlockStatus.BlockEndOfMemory); // this block is no longer the last block in its memory range
+        block.data.status &= ~@intFromEnum(MemoryBlockStatus.EndOfMemoryRange); // this block is no longer the last block in its memory range
 
         return new_node;
     }
 
     fn combineForward(list: *MemoryBlockList, block: *MemoryBlockList.Node) void {
         // This block ends a memory range, cannot be combined with blocks outside its range.
-        if (checkStatus(block, MemoryBlockStatus.BlockEndOfMemory)) return;
+        if (checkStatus(block, MemoryBlockStatus.EndOfMemoryRange)) return;
 
         // The caller needs to ensure there is a next block.
         const next = block.next.?;
         // This block starts a memory range, cannot be combined with blocks outside its range.
-        if (checkStatus(next, MemoryBlockStatus.BlockStartOfMemory)) return;
+        if (checkStatus(next, MemoryBlockStatus.StartOfMemoryRange)) return;
 
         list.remove(next);
         next.data.tag = MEMORY_BLOCK_FREE_TAG;
 
         block.data.allocated += next.data.allocated + @sizeOf(MemoryBlockList.Node);
 
-        if (checkStatus(next, MemoryBlockStatus.BlockEndOfMemory)) {
-            block.data.status |= @intFromEnum(MemoryBlockStatus.BlockEndOfMemory);
+        if (checkStatus(next, MemoryBlockStatus.EndOfMemoryRange)) {
+            block.data.status |= @intFromEnum(MemoryBlockStatus.EndOfMemoryRange);
         }
     }
 
     fn combineBackward(list: *MemoryBlockList, block: *MemoryBlockList.Node) *MemoryBlockList.Node {
         // This block starts a memory range, cannot be combined with blocks outside its range.
-        if (checkStatus(block, MemoryBlockStatus.BlockStartOfMemory)) return block;
+        if (checkStatus(block, MemoryBlockStatus.StartOfMemoryRange)) return block;
 
         // The caller needs to ensure there is a last block.
         const last = block.prev.?;
         // This block ends a memory range, cannot be combined with blocks outside its range.
-        if (checkStatus(last, MemoryBlockStatus.BlockEndOfMemory)) return block;
+        if (checkStatus(last, MemoryBlockStatus.EndOfMemoryRange)) return block;
 
         list.remove(block);
         block.data.tag = MEMORY_BLOCK_FREE_TAG;
 
         last.data.allocated += block.data.allocated + @sizeOf(MemoryBlockList.Node);
 
-        if (checkStatus(block, MemoryBlockStatus.BlockEndOfMemory)) {
-            last.data.status |= @intFromEnum(MemoryBlockStatus.BlockEndOfMemory);
+        if (checkStatus(block, MemoryBlockStatus.EndOfMemoryRange)) {
+            last.data.status |= @intFromEnum(MemoryBlockStatus.EndOfMemoryRange);
         }
 
         return last;
@@ -273,7 +292,7 @@ pub const SystemAllocator = struct {
 
             node.data.allocated = (pages * PAGE_SIZE) - (@sizeOf(MemoryBlockList.Node) + padding);
             node.data.tag = MEMORY_BLOCK_USED_TAG;
-            node.data.status = @intFromEnum(MemoryBlockStatus.BlockStartOfMemory) | @intFromEnum(MemoryBlockStatus.BlockEndOfMemory);
+            node.data.status = @intFromEnum(MemoryBlockStatus.StartOfMemoryRange) | @intFromEnum(MemoryBlockStatus.EndOfMemoryRange);
             node.data.alignment = @truncate(alignment);
             node.data.base_address = base_address;
             self.tags.append(node);
@@ -284,7 +303,7 @@ pub const SystemAllocator = struct {
         const tag = iter.?;
 
         tag.data.used = len;
-        tag.data.status |= @intFromEnum(MemoryBlockStatus.BlockUsed);
+        tag.data.status |= @intFromEnum(MemoryBlockStatus.Used);
 
         return ptrFromBlockNode(tag);
     }
@@ -317,7 +336,7 @@ pub const SystemAllocator = struct {
         if (block.data.alignment != alignment) return;
         if (!isBlockFree(block)) return;
 
-        block.data.status &= ~@intFromEnum(MemoryBlockStatus.BlockUsed);
+        block.data.status &= ~@intFromEnum(MemoryBlockStatus.Used);
 
         const maybe_next = block.next;
         if (maybe_next) |next| {
@@ -329,7 +348,7 @@ pub const SystemAllocator = struct {
             if (isBlockFree(last)) block = combineBackward(&self.tags, block);
         }
 
-        if (checkStatus(block, MemoryBlockStatus.BlockStartOfMemory) and checkStatus(block, MemoryBlockStatus.BlockEndOfMemory)) {
+        if (checkStatus(block, MemoryBlockStatus.StartOfMemoryRange) and checkStatus(block, MemoryBlockStatus.EndOfMemoryRange)) {
             self.tags.remove(block);
 
             const base_address = block.data.base_address;
