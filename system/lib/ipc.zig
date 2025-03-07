@@ -1,0 +1,38 @@
+const buffer = @import("ring_buffer.zig");
+const vm = @import("arch/vm.zig");
+
+pub const Connection = struct {
+    pid: u64,
+    read_buffer: buffer.RingBuffer,
+    write_buffer: buffer.RingBuffer,
+};
+
+pub const KERNEL_BUFFER_ADDRESS_OFFSET = 0x0000;
+pub const INIT_WRITE_BUFFER_ADDRESS_OFFSET = 0x1000;
+pub const INIT_READ_BUFFER_ADDRESS_OFFSET = 0x2000;
+
+var kernel_buffer: ?buffer.RingBuffer = null;
+
+pub fn setKernelBuffer(buf: buffer.RingBuffer) void {
+    kernel_buffer = buf;
+}
+
+pub fn getKernelBuffer() ?buffer.RingBuffer {
+    return kernel_buffer;
+}
+
+const PAGE_SIZE = vm.PAGE_SIZE;
+
+fn createPageBufferFromAddress(address: u64) buffer.RingBuffer {
+    const data: [*]u8 = @ptrFromInt(address);
+
+    return buffer.RingBuffer.init(data, PAGE_SIZE, false);
+}
+
+pub fn readInitBuffers(base_address: u64) Connection {
+    kernel_buffer = createPageBufferFromAddress(base_address + KERNEL_BUFFER_ADDRESS_OFFSET);
+    const read_buffer = createPageBufferFromAddress(base_address + INIT_READ_BUFFER_ADDRESS_OFFSET);
+    const write_buffer = createPageBufferFromAddress(base_address + INIT_WRITE_BUFFER_ADDRESS_OFFSET);
+
+    return .{ .pid = 0, .read_buffer = read_buffer, .write_buffer = write_buffer };
+}
