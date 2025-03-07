@@ -7,6 +7,8 @@ const MapError = error{
     OutOfMemory,
 };
 
+pub const PAGE_SIZE = 4096;
+
 pub const PhysFrame = struct {
     address: u64,
 
@@ -157,7 +159,7 @@ pub fn unmap(mapper: *const MemoryMapper, virt_address: u64) !PhysFrame {
     return frame;
 }
 
-pub fn getEntry(mapper: MemoryMapper, virt_address: u64) ?*PageTableEntry {
+pub fn getEntry(mapper: *const MemoryMapper, virt_address: u64) ?*PageTableEntry {
     const indexes = calculatePageTableIndexes(virt_address);
     const l4 = &mapper.directory.entries[indexes.level4];
     if (l4.present == 0) return null;
@@ -176,7 +178,7 @@ pub fn getEntry(mapper: MemoryMapper, virt_address: u64) ?*PageTableEntry {
     return l1;
 }
 
-pub fn getPhysical(mapper: MemoryMapper, virt_address: u64) ?PhysFrame {
+pub fn getPhysical(mapper: *const MemoryMapper, virt_address: u64) ?PhysFrame {
     const entry = getEntry(mapper, virt_address) orelse return null;
 
     return PhysFrame{ .address = entry.getAddress() };
