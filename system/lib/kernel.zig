@@ -17,6 +17,9 @@ pub const SystemCall = enum(u64) {
     StartThread, // requires Token.CreateProcess
     GetThreadId,
     GetAddressSpace, // requires Token.CreateProcess
+    Send,
+    AsyncSend,
+    Wait,
 };
 
 pub const Token = enum(u64) {
@@ -30,4 +33,8 @@ pub const SystemError = error{
     OutOfMemory,
     NoSuchThread,
     NotAuthorized,
+};
+
+pub const KernelMessage = enum(u8) {
+    MessageReceived = 0,
 };

@@ -5,6 +5,22 @@ pub const Connection = struct {
     pid: u64,
     read_buffer: buffer.RingBuffer,
     write_buffer: buffer.RingBuffer,
+
+    pub fn read(self: *Connection, comptime T: type, out: *T) bool {
+        return self.read_buffer.readType(T, out);
+    }
+
+    pub fn write(self: *Connection, comptime T: type, in: *const T) bool {
+        return self.write_buffer.writeType(T, in);
+    }
+
+    pub fn readBytes(self: *Connection, bytes: [*]u8, length: usize) bool {
+        return self.read_buffer.read(bytes, length);
+    }
+
+    pub fn writeBytes(self: *Connection, bytes: []u8) bool {
+        return self.write_buffer.writeSlice(bytes);
+    }
 };
 
 pub const KERNEL_BUFFER_ADDRESS_OFFSET = 0x0000;

@@ -14,10 +14,12 @@ export fn _start(_: u64, ipc_base: u64) callconv(.C) noreturn {
 
     var connection = system.ipc.readInitBuffers(ipc_base);
 
-    const byte: u8 = 127;
+    var byte: u8 = 127;
 
-    _ = connection.write_buffer.write(@ptrCast(&byte), 1);
-    syscalls.yield();
+    while (byte > 0) : (byte -= 1) {
+        _ = connection.write(u8, &byte);
+        syscalls.asyncSend(1);
+    }
 
     while (true) {}
 }

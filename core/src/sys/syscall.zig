@@ -5,6 +5,7 @@ const print = @import("print.zig");
 const mem = @import("mem.zig");
 const sched = @import("sched.zig");
 const tokens = @import("token.zig");
+const ipc = @import("ipc.zig");
 const cpu = @import("../arch/cpu.zig");
 
 pub const Arguments = struct {
@@ -37,6 +38,9 @@ const syscalls = [_]SystemCall{
     sched.startThread,
     sched.getThreadId,
     mem.getAddressSpace,
+    ipc.send,
+    ipc.asyncSend,
+    ipc.wait,
 };
 
 pub fn invokeSyscall(number: usize, frame: *platform.Registers, args: *Arguments, retval: *isize) void {

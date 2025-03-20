@@ -102,6 +102,22 @@ pub const RingBuffer = struct {
         return true;
     }
 
+    pub fn readType(self: *RingBuffer, comptime T: type, out: *T) bool {
+        return self.read(@ptrCast(out), @sizeOf(@TypeOf(out.*)));
+    }
+
+    pub fn peekType(self: *RingBuffer, comptime T: type, out: *T) bool {
+        return self.peek(@ptrCast(out), @sizeOf(@TypeOf(out.*)));
+    }
+
+    pub fn writeType(self: *RingBuffer, comptime T: type, in: *const T) bool {
+        return self.write(@ptrCast(in), @sizeOf(@TypeOf(in.*)));
+    }
+
+    pub fn writeSlice(self: *RingBuffer, bytes: []const u8) bool {
+        return self.write(bytes.ptr, bytes.len);
+    }
+
     fn dataPointer(self: *RingBuffer) [*]u8 {
         return @ptrCast(&self.data.data_start);
     }
