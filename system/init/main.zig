@@ -2,6 +2,7 @@ const std = @import("std");
 const system = @import("system");
 const thread = @import("thread.zig");
 const boot = @import("boot.zig");
+const ipc = @import("ipc.zig");
 
 const vm = system.vm;
 const syscalls = system.syscalls;
@@ -31,23 +32,18 @@ inline fn main(base: u64, address: u64) !void {
     var sys_alloc = heap.SystemAllocator.init(mapper, 0x200000, base - 0x200000); // FIXME: Let's not hardcode these.
     const allocator = sys_alloc.allocator();
 
-    const threads = boot.discoverThreadLimit();
-
     var thread_list = std.AutoHashMap(u64, thread.Thread).init(allocator);
-    try thread_list.ensureTotalCapacity(@intCast(threads));
     errdefer thread_list.deinit();
 
-    var pid: u64 = 1;
-    while (pid <= threads) : (pid += 1) {
-        if (pid == syscalls.getThreadId()) continue;
-        const t = try thread.setupThread(pid, base);
-        try thread_list.put(pid, t);
-    }
-
+    try boot.setupInitialThreads(&thread_list, base);
     try boot.setupKernelRingBuffer(base);
 
-    var kernel_queue = system.ipc.getKernelBuffer().?;
+    const kernel_queue = system.ipc.getKernelBuffer().?;
 
+    try runLoop(kernel_queue, &thread_list);
+}
+
+fn runLoop(kernel_queue: buffer.RingBuffer, thread_list: *std.AutoHashMap(u64, thread.Thread)) !void {
     outer: while (true) {
         var msg_type: u64 = undefined;
         while (kernel_queue.readType(u64, &msg_type)) {
@@ -56,13 +52,9 @@ inline fn main(base: u64, address: u64) !void {
                     var id: u64 = undefined;
                     if (!kernel_queue.readType(u64, &id)) continue :outer;
 
-                    var sender = thread_list.getPtr(id).?;
+                    const sender = thread_list.getPtr(id).?;
 
-                    var data: u8 = undefined;
-                    if (sender.connection.read(u8, &data)) {
-                        syscalls.print(id);
-                        syscalls.print(data);
-                    }
+                    try ipc.handleMessageFromThread(sender);
                 },
                 else => {},
             }

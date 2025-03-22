@@ -1,4 +1,6 @@
+const std = @import("std");
 const system = @import("system");
+const thread = @import("thread.zig");
 
 const vm = system.vm;
 const syscalls = system.syscalls;
@@ -21,5 +23,16 @@ pub fn discoverThreadLimit() u64 {
     while (true) {
         _ = syscalls.getPriority(pid) catch return (pid - 1);
         pid += 1;
+    }
+}
+
+fn setupInitialThreads(thread_list: *std.AutoHashMap(u64, thread.Thread), base: u64) !void {
+    const threads = discoverThreadLimit();
+
+    var pid: u64 = 1;
+    while (pid <= threads) : (pid += 1) {
+        if (pid == syscalls.getThreadId()) continue;
+        const t = try thread.setupThread(pid, base);
+        try thread_list.put(pid, t);
     }
 }

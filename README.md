@@ -9,13 +9,13 @@ This project is in its very early stages, so don't expect much yet.
 I've started this project to try something new in the world of OS development, after working on a classic monolithic system for some time. I've been wanting to make a microkernel-based system for a while. I've also been wanting to try out Zig, so this was a perfect opportunity to combine both.
 
 - [x] Fully written in Zig
-- [ ] Simple microkernel that only manages memory, scheduling, and basic IPC (in progress)
+- [x] Simple microkernel that only manages memory, scheduling, and basic IPC
   - [x] Memory management
   - [x] Basic ELF program loading
   - [x] Scheduling
-  - [ ] Message passing
-- [ ] IPC system using shared memory ring buffers
-- [ ] Init process that can load other services and connect processes to each other (sort of like dbus)
+  - [x] Message passing
+- [x] IPC system using shared memory ring buffers
+- [ ] Init process that can load other services and connect processes to each other (sort of like dbus, in progress)
 - [ ] Permission manager, VFS system, etc... all in userspace
 - [ ] Decently POSIX-compatible (with a compatibility layer and libc)
 - [ ] Window server and GUI system
