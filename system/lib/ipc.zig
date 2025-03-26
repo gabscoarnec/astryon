@@ -47,8 +47,11 @@ fn createPageBufferFromAddress(address: u64) buffer.RingBuffer {
 
 pub fn readInitBuffers(base_address: u64) Connection {
     kernel_buffer = createPageBufferFromAddress(base_address + KERNEL_BUFFER_ADDRESS_OFFSET);
-    const read_buffer = createPageBufferFromAddress(base_address + INIT_READ_BUFFER_ADDRESS_OFFSET);
+    var read_buffer = createPageBufferFromAddress(base_address + INIT_READ_BUFFER_ADDRESS_OFFSET);
     const write_buffer = createPageBufferFromAddress(base_address + INIT_WRITE_BUFFER_ADDRESS_OFFSET);
 
-    return .{ .pid = 0, .read_buffer = read_buffer, .write_buffer = write_buffer };
+    var pid: u64 = undefined;
+    _ = read_buffer.readType(u64, &pid);
+
+    return .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
 }

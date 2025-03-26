@@ -37,9 +37,12 @@ pub fn setupThread(pid: u64, base: u64) !Thread {
     try setupKernelRingBufferForThread(&mapper, pid, ipc_base + system.ipc.KERNEL_BUFFER_ADDRESS_OFFSET);
     // INIT_WRITE and INIT_READ are inverted here because when the process writes, init reads.
     const read_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_WRITE_BUFFER_ADDRESS_OFFSET);
-    const write_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_READ_BUFFER_ADDRESS_OFFSET);
+    var write_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_READ_BUFFER_ADDRESS_OFFSET);
 
     const connection: system.ipc.Connection = .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
+
+    const init_pid = syscalls.getThreadId();
+    _ = write_buffer.writeType(u64, &init_pid);
 
     try syscalls.setThreadArguments(pid, base, ipc_base);
 
