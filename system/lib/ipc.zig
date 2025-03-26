@@ -1,3 +1,4 @@
+const std = @import("std");
 const buffer = @import("ring_buffer.zig");
 const vm = @import("arch/vm.zig");
 
@@ -6,8 +7,10 @@ pub const Connection = struct {
     read_buffer: buffer.RingBuffer,
     write_buffer: buffer.RingBuffer,
 
-    pub fn read(self: *Connection, comptime T: type, out: *T) bool {
-        return self.read_buffer.readType(T, out);
+    pub fn read(self: *Connection, comptime T: type) ?T {
+        var out: T = undefined;
+        if (!self.read_buffer.readType(T, &out)) return null;
+        return out;
     }
 
     pub fn write(self: *Connection, comptime T: type, in: *const T) bool {
@@ -20,6 +23,13 @@ pub const Connection = struct {
 
     pub fn writeBytes(self: *Connection, bytes: []u8) bool {
         return self.write_buffer.writeSlice(bytes);
+    }
+
+    pub fn writeMessage(self: *Connection, comptime T: type, id: u8, in: *const T) bool {
+        var success = true;
+        if (!self.write(u8, &id)) success = false;
+        if (!self.write(T, in)) success = false;
+        return success;
     }
 };
 
@@ -54,4 +64,14 @@ pub fn readInitBuffers(base_address: u64) Connection {
     _ = read_buffer.readType(u64, &pid);
 
     return .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
+}
+
+pub const MessageHandler = *const fn (connection: *Connection, context: *anyopaque) anyerror!void;
+pub const MessageHandlerTable = std.AutoHashMap(u8, MessageHandler);
+
+pub fn handleMessage(connection: *Connection, map: *MessageHandlerTable, context: *anyopaque) bool {
+    if (connection.read(u8)) |message_type| {
+        const function = (map.getPtr(message_type) orelse return true).*;
+        function(connection, context) catch {};
+    } else return false;
 }

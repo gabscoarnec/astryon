@@ -2,6 +2,7 @@ const system = @import("system");
 
 const vm = system.vm;
 const syscalls = system.syscalls;
+const init = system.services.init;
 
 fn setTokens() void {
     var tokens: u64 = 0;
@@ -14,11 +15,12 @@ export fn _start(_: u64, ipc_base: u64) callconv(.C) noreturn {
 
     var connection = system.ipc.readInitBuffers(ipc_base);
 
-    var byte: u8 = 127;
+    var byte: u64 = 127;
 
     while (byte > 0) : (byte -= 1) {
-        _ = connection.write(u8, &byte);
-        syscalls.asyncSend(1);
+        const message = init.PrintMessage{ .number = byte };
+        _ = connection.writeMessage(@TypeOf(message), @intFromEnum(init.MessageType.Print), &message);
+        syscalls.asyncSend(connection.pid);
     }
 
     while (true) {}

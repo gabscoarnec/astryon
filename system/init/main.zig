@@ -23,6 +23,8 @@ export fn _start(base: u64, address: u64) callconv(.C) noreturn {
     main(base, address) catch {
         while (true) {}
     };
+
+    unreachable;
 }
 
 inline fn main(base: u64, address: u64) !void {
@@ -35,31 +37,61 @@ inline fn main(base: u64, address: u64) !void {
     var thread_list = std.AutoHashMap(u64, thread.Thread).init(allocator);
     errdefer thread_list.deinit();
 
+    var name_map = std.StringHashMap(u64).init(allocator);
+    errdefer name_map.deinit();
+
+    var message_table = try ipc.setupMessageTable(allocator);
+    errdefer message_table.deinit();
+
     try boot.setupInitialThreads(&thread_list, base);
     try boot.setupKernelRingBuffer(base);
 
     const kernel_queue = system.ipc.getKernelBuffer().?;
 
-    try runLoop(kernel_queue, &thread_list);
+    try runLoop(kernel_queue, &message_table, allocator, &thread_list, &name_map);
 }
 
-fn runLoop(kernel_queue: buffer.RingBuffer, thread_list: *std.AutoHashMap(u64, thread.Thread)) !void {
-    outer: while (true) {
-        var msg_type: u64 = undefined;
-        while (kernel_queue.readType(u64, &msg_type)) {
-            switch (msg_type) {
-                @intFromEnum(system.kernel.KernelMessage.MessageReceived) => {
-                    var id: u64 = undefined;
-                    if (!kernel_queue.readType(u64, &id)) continue :outer;
-
-                    const sender = thread_list.getPtr(id).?;
-
-                    try ipc.handleMessageFromThread(sender);
-                },
-                else => {},
-            }
-        }
-
+fn runLoop(
+    kernel_queue: buffer.RingBuffer,
+    message_table: *system.ipc.MessageHandlerTable,
+    allocator: std.mem.Allocator,
+    thread_list: *std.AutoHashMap(u64, thread.Thread),
+    name_map: *std.StringHashMap(u64),
+) !void {
+    while (true) {
+        try emptyKernelQueue(kernel_queue, message_table, allocator, thread_list, name_map);
         syscalls.wait();
+    }
+}
+
+fn emptyKernelQueue(
+    kernel_queue: buffer.RingBuffer,
+    message_table: *system.ipc.MessageHandlerTable,
+    allocator: std.mem.Allocator,
+    thread_list: *std.AutoHashMap(u64, thread.Thread),
+    name_map: *std.StringHashMap(u64),
+) !void {
+    var msg_type: u64 = undefined;
+    var queue = kernel_queue;
+
+    while (queue.readType(u64, &msg_type)) {
+        switch (msg_type) {
+            @intFromEnum(system.kernel.KernelMessage.MessageReceived) => {
+                var id: u64 = undefined;
+                if (!queue.readType(u64, &id)) return;
+
+                const sender = thread_list.getPtr(id).?;
+
+                var context = ipc.Context{
+                    .sender = sender,
+                    .allocator = allocator,
+                    .thread_list = thread_list,
+                    .name_map = name_map,
+                };
+
+                while (system.ipc.handleMessage(sender, message_table, &context)) {}
+            },
+            else => {},
+        }
     }
 }
