@@ -26,7 +26,7 @@ pub fn discoverThreadLimit() u64 {
     }
 }
 
-fn setupInitialThreads(thread_list: *std.AutoHashMap(u64, thread.Thread), base: u64) !void {
+pub fn setupInitialThreads(thread_list: *std.AutoHashMap(u64, thread.Thread), base: u64) !void {
     const threads = discoverThreadLimit();
 
     var pid: u64 = 1;
