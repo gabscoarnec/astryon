@@ -97,9 +97,7 @@ pub fn startThread(_: *platform.Registers, args: *sys.Arguments, _: *isize) anye
     if (!sys.checkToken(core, system.kernel.Token.CreateProcess)) return error.NotAuthorized;
     const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 
-    if (target.state != .Inactive) return;
-
-    thread.reviveThread(core, target);
+    thread.reviveThread(core, target, .Inactive);
 }
 
 pub fn getThreadId(_: *platform.Registers, _: *sys.Arguments, result: *isize) anyerror!void {

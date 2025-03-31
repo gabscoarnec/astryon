@@ -24,9 +24,7 @@ pub fn asyncSend(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerr
     data[1] = core.current_thread.id;
     _ = queue.writeType([2]u64, &data);
 
-    if (target.state == .Blocked) {
-        thread.reviveThread(core, target);
-    }
+    thread.reviveThread(core, target, .Blocked);
 }
 
 pub fn wait(regs: *platform.Registers, _: *sys.Arguments, _: *isize) anyerror!void {

@@ -10,7 +10,7 @@ const RingBuffer = system.ring_buffer.RingBuffer;
 
 pub const arch = @import("arch/thread.zig");
 
-pub const ThreadState = enum {
+pub const ThreadState = enum(u8) {
     Inactive,
     Running,
     Blocked,
@@ -21,7 +21,7 @@ pub const ThreadControlBlock = struct {
     id: u64,
     address_space: ?vmm.AddressSpace,
     regs: platform.Registers,
-    state: ThreadState,
+    state: std.atomic.Value(ThreadState),
     user_priority: u8,
     event_queue: ?RingBuffer,
     tokens: u64,
@@ -52,7 +52,7 @@ pub fn enterThread(thread: *ThreadControlBlock) noreturn {
         table = space.phys;
     }
 
-    thread.state = .Running;
+    thread.state.store(.Running, .seq_cst);
 
     // If the stack is in user memory, then we need a pointer to its higher-half version. If it's already in kernel memory, no need to do anything.
     var base: usize = 0;
@@ -101,7 +101,7 @@ pub fn preempt(regs: *platform.Registers) void {
 
     updateSleepQueue(core);
     while (popSleepQueue(core)) |thread| {
-        reviveThread(core, thread);
+        reviveThread(core, thread, .Sleeping);
     }
 
     core.current_thread.ticks -|= 1;
@@ -119,7 +119,7 @@ pub fn block(regs: *platform.Registers) *ThreadControlBlock {
     // fetchNewThread() always returns a thread if should_idle_if_not_found is set to true.
     const new_thread = fetchNewThread(core, true) orelse unreachable;
     const current_thread = scheduleNewThread(core, regs, new_thread);
-    current_thread.state = .Blocked;
+    current_thread.state.store(.Blocked, .seq_cst);
 
     return current_thread;
 }
@@ -131,7 +131,7 @@ pub fn startSleep(regs: *platform.Registers, ticks: u64) *ThreadControlBlock {
     // fetchNewThread() always returns a thread if should_idle_if_not_found is set to true.
     const new_thread = fetchNewThread(core, true) orelse unreachable;
     const current_thread = scheduleNewThread(core, regs, new_thread);
-    current_thread.state = .Sleeping;
+    current_thread.state.store(.Sleeping, .seq_cst);
     addThreadToSleepQueue(core, current_thread, ticks);
 
     return current_thread;
@@ -149,7 +149,7 @@ pub fn createThreadControlBlock(allocator: *pmm.FrameAllocator) !*ThreadControlB
     thread.id = next_id.fetchAdd(1, .seq_cst);
     thread.address_space = null;
     thread.regs = std.mem.zeroes(@TypeOf(thread.regs));
-    thread.state = .Inactive;
+    thread.state = std.atomic.Value(ThreadState).init(.Inactive);
     thread.user_priority = 127;
     thread.event_queue = null;
     thread.tokens = 0;
@@ -222,9 +222,10 @@ pub fn fetchNewThread(core: *cpu.arch.Core, should_idle_if_not_found: bool) ?*Th
 }
 
 /// Adds a previously blocked or sleeping thread back to the specified core's priority queue.
-pub fn reviveThread(core: *cpu.arch.Core, thread: *ThreadControlBlock) void {
-    thread.state = .Running;
-    addThreadToPriorityQueue(core, thread);
+pub fn reviveThread(core: *cpu.arch.Core, thread: *ThreadControlBlock, expected: ThreadState) void {
+    if (thread.state.cmpxchgStrong(expected, .Running, .seq_cst, .seq_cst) == null) {
+        addThreadToPriorityQueue(core, thread);
+    }
 }
 
 // The "sleep queue" is the secondary scheduling queue for each core. In the code, it is referred to as "core.sleeping_thread_list".
