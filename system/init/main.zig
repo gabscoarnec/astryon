@@ -89,7 +89,7 @@ fn emptyKernelQueue(
                     .name_map = name_map,
                 };
 
-                while (system.ipc.handleMessage(sender, message_table, &context)) {}
+                while (system.ipc.handleMessage(&sender.connection, message_table, &context)) {}
             },
             else => {},
         }

@@ -73,5 +73,6 @@ pub fn handleMessage(connection: *Connection, map: *MessageHandlerTable, context
     if (connection.read(u8)) |message_type| {
         const function = (map.getPtr(message_type) orelse return true).*;
         function(connection, context) catch {};
+        return true;
     } else return false;
 }

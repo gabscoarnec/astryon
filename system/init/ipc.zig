@@ -34,7 +34,7 @@ fn handlePrintMessage(connection: *system.ipc.Connection, _: *Context) anyerror!
 }
 
 pub fn setupMessageTable(allocator: std.mem.Allocator) !system.ipc.MessageHandlerTable {
-    const table = system.ipc.MessageHandlerTable.init(allocator);
+    var table = system.ipc.MessageHandlerTable.init(allocator);
     errdefer table.deinit();
 
     try table.put(@intFromEnum(init.MessageType.Hello), @ptrCast(&handleHelloMessage));
