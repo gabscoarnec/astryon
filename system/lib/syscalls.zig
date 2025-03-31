@@ -14,8 +14,8 @@ fn syscall(num: kernel.SystemCall, arg0: u64, arg1: u64, arg2: u64) i64 {
     };
 }
 
-pub fn print(arg: u64) void {
-    _ = syscall(.Print, arg, 0, 0);
+pub fn print(str: []const u8) void {
+    _ = syscall(.Print, @intFromPtr(str.ptr), str.len, 0);
 }
 
 pub fn allocFrame() !usize {
