@@ -1,3 +1,4 @@
+const std = @import("std");
 const system = @import("system");
 
 const vm = system.vm;
@@ -14,13 +15,17 @@ export fn _start(_: u64, ipc_base: u64) callconv(.C) noreturn {
     setTokens();
 
     var connection = system.ipc.readInitBuffers(ipc_base);
+    init.bind(&connection, "os.astryon.memory");
 
     var byte: u64 = 127;
 
     while (byte > 0) : (byte -= 1) {
-        const message = init.PrintMessage{ .number = byte };
-        _ = connection.writeMessage(@TypeOf(message), @intFromEnum(init.MessageType.Print), &message);
-        syscalls.asyncSend(connection.pid);
+        var buffer = std.mem.zeroes([128]u8);
+        const message = std.fmt.bufPrint(&buffer, "countdown {d}", .{byte}) catch {
+            unreachable;
+        };
+
+        init.print(&connection, message);
     }
 
     while (true) {}

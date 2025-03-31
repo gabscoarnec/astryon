@@ -1,6 +1,7 @@
 const std = @import("std");
 const buffer = @import("ring_buffer.zig");
 const vm = @import("arch/vm.zig");
+const syscalls = @import("syscalls.zig");
 
 pub const Connection = struct {
     pid: u64,
@@ -31,6 +32,12 @@ pub const Connection = struct {
         if (!self.write(u8, &id)) success = false;
         if (!self.write(T, in)) success = false;
         return success;
+    }
+
+    pub fn sendMessageAsync(self: *Connection, comptime T: type, id: u8, in: *const T) void {
+        while (!self.writeMessage(T, id, in)) syscalls.yield();
+
+        syscalls.asyncSend(self.pid);
     }
 };
 
