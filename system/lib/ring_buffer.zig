@@ -122,7 +122,7 @@ pub const RingBuffer = struct {
         return @ptrCast(&self.data.data_start);
     }
 
-    fn bytesAvailableToWrite(self: *RingBuffer) u16 {
+    pub fn bytesAvailableToWrite(self: *RingBuffer) u16 {
         const head = @atomicLoad(u16, &self.data.read_index, .acquire);
         const tail = @atomicLoad(u16, &self.data.write_index, .monotonic);
         if (head >= self.capacity or tail >= self.capacity) return 0; // Who tampered with the indices??
@@ -133,7 +133,7 @@ pub const RingBuffer = struct {
         }
     }
 
-    fn bytesAvailableToRead(self: *RingBuffer) u16 {
+    pub fn bytesAvailableToRead(self: *RingBuffer) u16 {
         const head = @atomicLoad(u16, &self.data.read_index, .monotonic);
         const tail = @atomicLoad(u16, &self.data.write_index, .acquire);
         if (head >= self.capacity or tail >= self.capacity) return 0; // Who tampered with the indices??

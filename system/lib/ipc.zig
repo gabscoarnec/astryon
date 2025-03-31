@@ -27,6 +27,7 @@ pub const Connection = struct {
 
     pub fn writeMessage(self: *Connection, comptime T: type, id: u8, in: *const T) bool {
         var success = true;
+        if (self.write_buffer.bytesAvailableToWrite() < (@sizeOf(u8) + @sizeOf(T))) return false;
         if (!self.write(u8, &id)) success = false;
         if (!self.write(T, in)) success = false;
         return success;
