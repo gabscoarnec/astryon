@@ -194,6 +194,43 @@ pub fn copyToUser(space: AddressSpace, base: usize, user: usize, kernel: [*]cons
     return;
 }
 
+pub fn copyFromUser(space: AddressSpace, base: usize, user: usize, kernel: [*]u8, size: usize) !void {
+    const remainder: usize = @rem(user, platform.PAGE_SIZE);
+    const user_page = user - remainder;
+
+    var user_address = user;
+    var kernel_ptr = kernel;
+    var count = size;
+
+    if (user_address != user_page) {
+        const pte = getEntry(space, base, user_page) orelse return error.MemoryNotInUse;
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
+        const amount: usize = @min((platform.PAGE_SIZE - remainder), count);
+        const virt = frame.virtualAddress(base) + remainder;
+
+        @memcpy(kernel_ptr[0..amount], @as([*]const u8, @ptrFromInt(virt))[0..amount]);
+
+        kernel_ptr += amount;
+        user_address += amount;
+        count -= amount;
+    }
+
+    while (count > 0) {
+        const pte = getEntry(space, base, user_address) orelse return error.MemoryNotInUse;
+        const frame = pmm.PhysFrame{ .address = pte.getAddress() };
+        const amount: usize = @min(platform.PAGE_SIZE, count);
+        const virt = frame.virtualAddress(base);
+
+        @memcpy(kernel_ptr[0..amount], @as([*]const u8, @ptrFromInt(virt))[0..amount]);
+
+        kernel_ptr += amount;
+        user_address += amount;
+        count -= amount;
+    }
+
+    return;
+}
+
 pub fn memsetUser(space: AddressSpace, base: usize, user: usize, elem: u8, size: usize) !void {
     const remainder: usize = @rem(user, platform.PAGE_SIZE);
     const user_page = user - remainder;
