@@ -1,5 +1,6 @@
 const std = @import("std");
 const system = @import("system");
+const memory = @import("memory.zig");
 
 const vm = system.vm;
 const syscalls = system.syscalls;
@@ -8,6 +9,8 @@ const buffer = system.ring_buffer;
 pub const Thread = struct {
     address: ?[]u8,
     connection: system.ipc.Connection,
+    mapper: vm.MemoryMapper,
+    memory_map: memory.ThreadMemoryMap,
 };
 
 pub fn setupKernelRingBufferForThread(mapper: *const vm.MemoryMapper, pid: u64, virt: u64) !void {
@@ -28,7 +31,32 @@ pub fn setupRingBufferForThread(mapper: *const vm.MemoryMapper, base: u64, virt:
     return buffer.RingBuffer.init(data, vm.PAGE_SIZE, true);
 }
 
-pub fn setupThread(pid: u64, base: u64) !Thread {
+const Context = struct {
+    allocator: std.mem.Allocator,
+    map: *memory.ThreadMemoryMap,
+};
+
+fn registerMemoryCallback(page: u64, size: u64, context: *Context) anyerror!void {
+    _ = try memory.tryToAllocRegionAtAddress(context.allocator, context.map, page, @divTrunc(size, vm.PAGE_SIZE), .{
+        .used = true,
+    });
+}
+
+pub fn registerExistingThreadMemoryInMemoryMap(allocator: std.mem.Allocator, mapper: *const vm.MemoryMapper, map: *memory.ThreadMemoryMap) !void {
+    var ctx = Context{
+        .allocator = allocator,
+        .map = map,
+    };
+
+    try vm.iterateOverPages(mapper, @ptrCast(&registerMemoryCallback), @ptrCast(&ctx));
+
+    var iter = map.first;
+    while (iter) |node| {
+        iter = node.next;
+    }
+}
+
+pub fn setupThread(allocator: std.mem.Allocator, pid: u64, base: u64) !Thread {
     const space = try syscalls.getAddressSpace(pid);
     const mapper = vm.MemoryMapper.create(.{ .address = space }, base);
 
@@ -39,6 +67,9 @@ pub fn setupThread(pid: u64, base: u64) !Thread {
     const read_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_WRITE_BUFFER_ADDRESS_OFFSET);
     var write_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_READ_BUFFER_ADDRESS_OFFSET);
 
+    var map = try memory.createThreadMemoryMap(allocator);
+    try registerExistingThreadMemoryInMemoryMap(allocator, &mapper, &map);
+
     const connection: system.ipc.Connection = .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
 
     const init_pid = syscalls.getThreadId();
@@ -48,5 +79,5 @@ pub fn setupThread(pid: u64, base: u64) !Thread {
 
     try syscalls.startThread(pid);
 
-    return .{ .address = null, .connection = connection };
+    return .{ .address = null, .connection = connection, .mapper = mapper, .memory_map = map };
 }

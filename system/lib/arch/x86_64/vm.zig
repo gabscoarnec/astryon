@@ -8,6 +8,8 @@ const MapError = error{
 };
 
 pub const PAGE_SIZE = 4096;
+pub const USER_ADDRESS_RANGE_END = 0x0000_7fff_ffff_ffff;
+const HUGE_PAGE_SIZE = 0x200000; // 2 MiB
 
 pub const PhysFrame = struct {
     address: u64,
@@ -83,6 +85,12 @@ pub const MemoryMapper = struct {
 
 fn calculatePageTableIndexes(address: usize) PageTableIndexes {
     return .{ .level4 = @intCast((address >> 39) & 0o777), .level3 = @intCast((address >> 30) & 0o777), .level2 = @intCast((address >> 21) & 0o777), .level1 = @intCast((address >> 12) & 0o777) };
+}
+
+fn calculateAddressFromPageTableIndexes(indexes: PageTableIndexes) usize {
+    var sign_extension: u64 = 0;
+    if (indexes.level4 > 255) sign_extension = 0xffff_0000_0000_0000;
+    return sign_extension | @as(u64, indexes.level4) << 39 | @as(u64, indexes.level3) << 30 | @as(u64, indexes.level2) << 21 | @as(u64, indexes.level1) << 12;
 }
 
 fn hasFlag(flags: u32, flag: Flags) u1 {
@@ -182,4 +190,47 @@ pub fn getPhysical(mapper: *const MemoryMapper, virt_address: u64) ?PhysFrame {
     const entry = getEntry(mapper, virt_address) orelse return null;
 
     return PhysFrame{ .address = entry.getAddress() };
+}
+
+fn iterateOverPageLayer(table: *PageDirectory, base: u64, callback: *const fn (page: u64, size: u64, context: *anyopaque) anyerror!void, context: *anyopaque, index: u8, indexes: *PageTableIndexes) !void {
+    if (index > 0) {
+        var i: u64 = 0;
+        while (i < 512) : (i += 1) {
+            const pte = &table.entries[i];
+            if (pte.present == 0) continue;
+            switch (index) {
+                4 => indexes.level4 = @truncate(i),
+                3 => indexes.level3 = @truncate(i),
+                2 => indexes.level2 = @truncate(i),
+                1 => indexes.level1 = @truncate(i),
+                else => {},
+            }
+
+            if ((index < 4) and (pte.larger_pages == 1)) {
+                switch (index) {
+                    3 => {
+                        indexes.level2 = 0;
+                        indexes.level1 = 0;
+                    },
+                    2 => indexes.level1 = 0,
+                    else => {},
+                }
+                try callback(calculateAddressFromPageTableIndexes(indexes.*), HUGE_PAGE_SIZE, context);
+                continue;
+            }
+
+            if (index > 1) {
+                const child_frame = PhysFrame{ .address = pte.getAddress() };
+                const child_table: *PageDirectory = @ptrFromInt(child_frame.virtualAddress(base));
+                try iterateOverPageLayer(child_table, base, callback, context, index - 1, indexes);
+            } else {
+                try callback(calculateAddressFromPageTableIndexes(indexes.*), PAGE_SIZE, context);
+            }
+        }
+    }
+}
+
+pub fn iterateOverPages(mapper: *const MemoryMapper, callback: *const fn (page: u64, size: u64, context: *anyopaque) anyerror!void, context: *anyopaque) anyerror!void {
+    var indexes: PageTableIndexes = std.mem.zeroes(PageTableIndexes);
+    try iterateOverPageLayer(mapper.directory, mapper.base, callback, context, 4, &indexes);
 }

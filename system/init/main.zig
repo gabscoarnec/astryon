@@ -43,10 +43,10 @@ inline fn main(base: u64, address: u64) !void {
     var message_table = try ipc.setupMessageTable(allocator);
     errdefer message_table.deinit();
 
-    try boot.setupInitialThreads(&thread_list, base);
     try boot.setupKernelRingBuffer(base);
-
     const kernel_queue = system.ipc.getKernelBuffer().?;
+
+    try boot.setupInitialThreads(allocator, &thread_list, base);
 
     try runLoop(kernel_queue, &message_table, allocator, &thread_list, &name_map);
 }

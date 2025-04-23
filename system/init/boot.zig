@@ -26,13 +26,13 @@ pub fn discoverThreadLimit() u64 {
     }
 }
 
-pub fn setupInitialThreads(thread_list: *std.AutoHashMap(u64, thread.Thread), base: u64) !void {
+pub fn setupInitialThreads(allocator: std.mem.Allocator, thread_list: *std.AutoHashMap(u64, thread.Thread), base: u64) !void {
     const threads = discoverThreadLimit();
 
     var pid: u64 = 1;
     while (pid <= threads) : (pid += 1) {
         if (pid == syscalls.getThreadId()) continue;
-        const t = try thread.setupThread(pid, base);
+        const t = try thread.setupThread(allocator, pid, base);
         try thread_list.put(pid, t);
     }
 }
