@@ -63,6 +63,8 @@ fn createPageBufferFromAddress(address: u64) buffer.RingBuffer {
     return buffer.RingBuffer.init(data, PAGE_SIZE, false);
 }
 
+var init_connection: ?Connection = null;
+
 pub fn readInitBuffers(base_address: u64) Connection {
     kernel_buffer = createPageBufferFromAddress(base_address + KERNEL_BUFFER_ADDRESS_OFFSET);
     var read_buffer = createPageBufferFromAddress(base_address + INIT_READ_BUFFER_ADDRESS_OFFSET);
@@ -71,7 +73,12 @@ pub fn readInitBuffers(base_address: u64) Connection {
     var pid: u64 = undefined;
     _ = read_buffer.readType(u64, &pid);
 
-    return .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
+    init_connection = .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
+    return init_connection;
+}
+
+pub fn getInitConnection() ?Connection {
+    return init_connection;
 }
 
 pub const MessageHandler = *const fn (connection: *Connection, context: *anyopaque) anyerror!void;
