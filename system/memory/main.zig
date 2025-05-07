@@ -11,22 +11,28 @@ fn setTokens() void {
     syscalls.setTokens(syscalls.getThreadId(), tokens) catch {};
 }
 
-export fn _start(_: u64, ipc_base: u64) callconv(.C) noreturn {
+fn main() !void {
     setTokens();
 
-    var connection = system.ipc.readInitBuffers(ipc_base);
+    var connection = system.ipc.getInitConnection().?;
     init.bind(&connection, "os.astryon.memory");
 
-    var byte: u64 = 127;
+    var allocator = system.system_allocator.allocator();
 
-    while (byte > 0) : (byte -= 1) {
+    const byte: *u64 = try allocator.create(u64);
+
+    byte.* = 127;
+
+    while (byte.* > 0) : (byte.* -= 1) {
         var buffer = std.mem.zeroes([128]u8);
-        const message = std.fmt.bufPrint(&buffer, "countdown {d}", .{byte}) catch {
-            unreachable;
-        };
+        const message = try std.fmt.bufPrint(&buffer, "countdown {d}", .{byte.*});
 
         init.print(&connection, message);
     }
 
-    while (true) {}
+    allocator.destroy(byte);
+}
+
+export fn _start(_: u64, ipc_base: u64) callconv(.C) noreturn {
+    system.runHosted(ipc_base, main);
 }

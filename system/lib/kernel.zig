@@ -20,6 +20,7 @@ pub const SystemCall = enum(u64) {
     Send,
     AsyncSend,
     Wait,
+    Reply,
 };
 
 pub const Token = enum(u64) {

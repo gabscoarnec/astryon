@@ -102,14 +102,18 @@ pub fn getAddressSpace(pid: u64) !u64 {
     return @bitCast(retval);
 }
 
-pub fn send(pid: u64) void {
-    _ = syscall(.Send, pid, 0, 0);
+pub fn send(pid: u64, channel: u64) void {
+    _ = syscall(.Send, pid, channel, 0);
 }
 
-pub fn asyncSend(pid: u64) void {
-    _ = syscall(.AsyncSend, pid, 0, 0);
+pub fn asyncSend(pid: u64, channel: u64) void {
+    _ = syscall(.AsyncSend, pid, channel, 0);
 }
 
 pub fn wait() void {
     _ = syscall(.Wait, 0, 0, 0);
+}
+
+pub fn reply(pid: u64) void {
+    _ = syscall(.Reply, pid, 0, 0);
 }

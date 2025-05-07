@@ -31,7 +31,8 @@ inline fn main(base: u64, address: u64) !void {
     setTokens();
 
     const mapper = vm.MemoryMapper.create(.{ .address = address }, base);
-    var sys_alloc = heap.SystemAllocator.init(mapper, 0x200000, base - 0x200000); // FIXME: Let's not hardcode these.
+    var vm_alloc = heap.VirtualMemoryAllocator.create(mapper, 0x200000, base - 0x200000);
+    var sys_alloc = heap.SystemAllocator.init(vm_alloc.page_allocator()); // FIXME: Let's not hardcode these.
     const allocator = sys_alloc.allocator();
 
     var thread_list = std.AutoHashMap(u64, thread.Thread).init(allocator);
@@ -78,7 +79,14 @@ fn emptyKernelQueue(
         switch (msg_type) {
             @intFromEnum(system.kernel.KernelMessage.MessageReceived) => {
                 var id: u64 = undefined;
+                var channel: u64 = undefined;
                 if (!queue.readType(u64, &id)) return;
+                if (!queue.readType(u64, &channel)) return;
+
+                if (channel != 0) {
+                    // FIXME: Different channels not implemented
+                    system.io.print("FIXME: Message from a different channel!", .{});
+                }
 
                 const sender = thread_list.getPtr(id).?;
 

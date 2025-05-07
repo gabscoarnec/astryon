@@ -19,10 +19,18 @@ pub fn asyncSend(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerr
 
     var queue = target.event_queue orelse return error.ThreadMessagingNotAvailable;
 
-    var data: [2]u64 = std.mem.zeroes([2]u64);
+    var data: [3]u64 = std.mem.zeroes([3]u64);
     data[0] = @intFromEnum(system.kernel.KernelMessage.MessageReceived);
     data[1] = core.current_thread.id;
-    _ = queue.writeType([2]u64, &data);
+    data[2] = args.arg1; // channel
+    _ = queue.writeType([3]u64, &data);
+
+    thread.reviveThread(core, target, .Blocked);
+}
+
+pub fn reply(_: *platform.Registers, args: *sys.Arguments, _: *isize) anyerror!void {
+    const core = cpu.thisCore();
+    const target = thread.lookupThreadById(args.arg0) orelse return error.NoSuchThread;
 
     thread.reviveThread(core, target, .Blocked);
 }

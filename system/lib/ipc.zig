@@ -3,8 +3,13 @@ const buffer = @import("ring_buffer.zig");
 const vm = @import("arch/vm.zig");
 const syscalls = @import("syscalls.zig");
 
-pub const Connection = struct {
+pub const ConnectionPort = struct {
     pid: u64,
+    channel: u64,
+};
+
+pub const Connection = struct {
+    port: ConnectionPort,
     read_buffer: buffer.RingBuffer,
     write_buffer: buffer.RingBuffer,
 
@@ -37,7 +42,18 @@ pub const Connection = struct {
     pub fn sendMessageAsync(self: *Connection, comptime T: type, id: u8, in: *const T) void {
         while (!self.writeMessage(T, id, in)) syscalls.yield();
 
-        syscalls.asyncSend(self.pid);
+        syscalls.asyncSend(self.port.pid, self.port.channel);
+    }
+
+    pub fn sendMessageSync(self: *Connection, comptime T: type, id: u8, in: *const T) void {
+        while (!self.writeMessage(T, id, in)) syscalls.yield();
+
+        syscalls.send(self.port.pid, self.port.channel);
+    }
+
+    pub fn reply(self: *Connection, comptime T: type, in: *const T) void {
+        while (!self.write(T, in)) syscalls.yield();
+        syscalls.reply(self.port.pid);
     }
 };
 
@@ -73,8 +89,8 @@ pub fn readInitBuffers(base_address: u64) Connection {
     var pid: u64 = undefined;
     _ = read_buffer.readType(u64, &pid);
 
-    init_connection = .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
-    return init_connection;
+    init_connection = .{ .port = .{ .pid = pid, .channel = 0 }, .read_buffer = read_buffer, .write_buffer = write_buffer };
+    return init_connection.?;
 }
 
 pub fn getInitConnection() ?Connection {
@@ -90,4 +106,22 @@ pub fn handleMessage(connection: *Connection, map: *MessageHandlerTable, context
         function(connection, context) catch {};
         return true;
     } else return false;
+}
+
+pub const ConnectionTable = struct {
+    by_name: std.StringHashMap(Connection),
+    by_port: std.AutoHashMap(ConnectionPort, Connection),
+};
+
+pub fn createConnectionTable(allocator: std.mem.Allocator) ConnectionTable {
+    return .{
+        .by_name = std.StringHashMap(Connection).init(allocator),
+        .by_port = std.AutoHashMap(ConnectionPort, Connection).init(allocator),
+    };
+}
+
+pub fn queryConnection(table: ?*ConnectionTable, name: []u8) ?Connection {
+    if (std.mem.eql(u8, name, "astryon.init")) return init_connection;
+
+    return table.?.by_name.get(name);
 }

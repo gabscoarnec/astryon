@@ -41,6 +41,7 @@ const syscalls = [_]SystemCall{
     ipc.send,
     ipc.asyncSend,
     ipc.wait,
+    ipc.reply,
 };
 
 pub fn invokeSyscall(number: usize, frame: *platform.Registers, args: *Arguments, retval: *isize) void {

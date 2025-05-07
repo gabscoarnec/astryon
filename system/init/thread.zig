@@ -60,17 +60,27 @@ pub fn setupThread(allocator: std.mem.Allocator, pid: u64, base: u64) !Thread {
     const space = try syscalls.getAddressSpace(pid);
     const mapper = vm.MemoryMapper.create(.{ .address = space }, base);
 
-    const ipc_base = 0x1000; // FIXME: Find a good place in the address space and guarantee this is free.
+    var map = try memory.createThreadMemoryMap(allocator);
+    try registerExistingThreadMemoryInMemoryMap(allocator, &mapper, &map);
+
+    const IPC_PAGES = 3;
+
+    const ipc_base = memory.allocRegion(allocator, &map, IPC_PAGES, .{
+        .used = true,
+        .persistent = true,
+        .prot = @intFromEnum(system.services.init.MapProt.PROT_READ) | @intFromEnum(system.services.init.MapProt.PROT_WRITE),
+        .flags = @intFromEnum(system.services.init.MapFlags.MAP_SHARED) | @intFromEnum(system.services.init.MapFlags.MAP_ANONYMOUS),
+    }) orelse {
+        system.io.print("No suitable memory range found to place IPC memory!", .{});
+        return error.OutOfMemory;
+    };
 
     try setupKernelRingBufferForThread(&mapper, pid, ipc_base + system.ipc.KERNEL_BUFFER_ADDRESS_OFFSET);
     // INIT_WRITE and INIT_READ are inverted here because when the process writes, init reads.
     const read_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_WRITE_BUFFER_ADDRESS_OFFSET);
     var write_buffer = try setupRingBufferForThread(&mapper, base, ipc_base + system.ipc.INIT_READ_BUFFER_ADDRESS_OFFSET);
 
-    var map = try memory.createThreadMemoryMap(allocator);
-    try registerExistingThreadMemoryInMemoryMap(allocator, &mapper, &map);
-
-    const connection: system.ipc.Connection = .{ .pid = pid, .read_buffer = read_buffer, .write_buffer = write_buffer };
+    const connection: system.ipc.Connection = .{ .port = .{ .pid = pid, .channel = 0 }, .read_buffer = read_buffer, .write_buffer = write_buffer };
 
     const init_pid = syscalls.getThreadId();
     _ = write_buffer.writeType(u64, &init_pid);

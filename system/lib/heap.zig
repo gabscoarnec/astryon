@@ -1,10 +1,19 @@
 const std = @import("std");
 const syscalls = @import("syscalls.zig");
 const vm = @import("arch/vm.zig");
+const init = @import("services/init.zig");
+const ipc = @import("ipc.zig");
 
 const PAGE_SIZE = vm.PAGE_SIZE;
 
-const VirtualMemoryAllocator = struct {
+const PageAllocator = struct {
+    ptr: *anyopaque,
+    allocAndMap: *const fn (ptr: *anyopaque, count: u64) anyerror!usize,
+    unmapAndFree: *const fn (ptr: *anyopaque, base: usize, count: u64) anyerror!void,
+};
+
+// Not thread-safe and depends on userspace memory manipulation, should only be used in non-multithreading system processes (such as init).
+pub const VirtualMemoryAllocator = struct {
     mapper: vm.MemoryMapper,
     base: usize,
     end: usize,
@@ -12,6 +21,10 @@ const VirtualMemoryAllocator = struct {
 
     pub fn create(mapper: vm.MemoryMapper, base: usize, end: usize) VirtualMemoryAllocator {
         return .{ .mapper = mapper, .base = base, .end = end, .start = base };
+    }
+
+    pub fn page_allocator(self: *VirtualMemoryAllocator) PageAllocator {
+        return .{ .ptr = self, .allocAndMap = VirtualMemoryAllocator.allocAndMap, .unmapAndFree = VirtualMemoryAllocator.unmapAndFree };
     }
 
     fn isAvailable(self: *VirtualMemoryAllocator, page: usize) bool {
@@ -46,7 +59,9 @@ const VirtualMemoryAllocator = struct {
         return null;
     }
 
-    pub fn allocAndMap(self: *VirtualMemoryAllocator, count: u64) !usize {
+    pub fn allocAndMap(ptr: *anyopaque, count: u64) anyerror!usize {
+        const self: *VirtualMemoryAllocator = @ptrCast(@alignCast(ptr));
+
         const base = self.findFreeVirtualMemory(count) orelse return error.OutOfMemory;
         var virtual_address = base;
 
@@ -60,7 +75,9 @@ const VirtualMemoryAllocator = struct {
         return base;
     }
 
-    pub fn unmapAndFree(self: *VirtualMemoryAllocator, base: usize, count: u64) !void {
+    pub fn unmapAndFree(ptr: *anyopaque, base: usize, count: u64) anyerror!void {
+        const self: *VirtualMemoryAllocator = @ptrCast(@alignCast(ptr));
+
         var virtual_address = base;
 
         var pages_unmapped: u64 = 0;
@@ -71,6 +88,33 @@ const VirtualMemoryAllocator = struct {
         }
 
         self.start = @min(self.start, base);
+    }
+};
+
+// Uses memory mapping IPC functions provided by init.
+pub const MapMemoryAllocator = struct {
+    connection: ipc.Connection,
+
+    pub fn create(connection: ipc.Connection) MapMemoryAllocator {
+        return .{ .connection = connection };
+    }
+
+    pub fn page_allocator(self: *MapMemoryAllocator) PageAllocator {
+        return .{ .ptr = self, .allocAndMap = MapMemoryAllocator.allocAndMap, .unmapAndFree = MapMemoryAllocator.unmapAndFree };
+    }
+
+    pub fn allocAndMap(ptr: *anyopaque, count: u64) anyerror!usize {
+        const self: *MapMemoryAllocator = @ptrCast(@alignCast(ptr));
+
+        const base = init.map(&self.connection, count * vm.PAGE_SIZE, @intFromEnum(init.MapProt.PROT_READ) | @intFromEnum(init.MapProt.PROT_WRITE), @intFromEnum(init.MapFlags.MAP_ANONYMOUS) | @intFromEnum(init.MapFlags.MAP_PRIVATE)) orelse return error.OutOfMemory;
+
+        return base;
+    }
+
+    pub fn unmapAndFree(ptr: *anyopaque, base: usize, count: u64) anyerror!void {
+        const self: *MapMemoryAllocator = @ptrCast(@alignCast(ptr));
+
+        init.unmap(&self.connection, base, count);
     }
 };
 
@@ -95,13 +139,12 @@ const MemoryBlockTag = packed struct {
 
 const MemoryBlockList = std.DoublyLinkedList(MemoryBlockTag);
 
-// Not thread-safe and depends on userspace memory manipulation, should only be used in non-multithreading system processes (such as init).
 pub const SystemAllocator = struct {
     tags: MemoryBlockList,
-    underlying_alloc: VirtualMemoryAllocator,
+    underlying_alloc: PageAllocator,
 
-    pub fn init(mapper: vm.MemoryMapper, base: usize, end: usize) SystemAllocator {
-        return .{ .tags = .{}, .underlying_alloc = VirtualMemoryAllocator.create(mapper, base, end) };
+    pub fn init(page_allocator: PageAllocator) SystemAllocator {
+        return .{ .tags = .{}, .underlying_alloc = page_allocator };
     }
 
     pub fn allocator(self: *SystemAllocator) std.mem.Allocator {
@@ -282,7 +325,7 @@ pub const SystemAllocator = struct {
         if (iter == null) {
             const pages: usize = @max(MINIMUM_PAGES_PER_ALLOCATION, @divTrunc(len + @sizeOf(MemoryBlockList.Node), PAGE_SIZE));
 
-            const base_address = self.underlying_alloc.allocAndMap(pages) catch return null;
+            const base_address = self.underlying_alloc.allocAndMap(self.underlying_alloc.ptr, pages) catch return null;
             const address = alignBlockAddressUpwards(base_address, alignment);
 
             const padding = address - base_address;
@@ -357,7 +400,7 @@ pub const SystemAllocator = struct {
             const padding = block_address - base_address;
 
             const pages = std.math.divCeil(usize, block.data.allocated + padding + @sizeOf(MemoryBlockList.Node), PAGE_SIZE) catch return;
-            self.underlying_alloc.unmapAndFree(base_address, pages) catch return;
+            self.underlying_alloc.unmapAndFree(self.underlying_alloc.ptr, base_address, pages) catch return;
         }
     }
 };

@@ -135,7 +135,7 @@ fn tryToMergeRegionWithPrevious(allocator: std.mem.Allocator, map: *ThreadMemory
 }
 
 fn attemptToAllocateInRegion(allocator: std.mem.Allocator, map: *ThreadMemoryMap, region: *MemoryRegion, count: usize, settings: MemoryRegion.Settings) ?usize {
-    if (!region.used) { // If the region is already used, skip it.
+    if (!region.settings.used) { // If the region is already used, skip it.
         if (region.count < count) return null; // Not enough space to allocate here, keep searching.
 
         if (region.count == count) { // Just enough space! Let's make this region used directly.
@@ -149,7 +149,7 @@ fn attemptToAllocateInRegion(allocator: std.mem.Allocator, map: *ThreadMemoryMap
         // More than enough space! Let's split the region and take just what we need.
         const boundary: usize = region.end - (count * vm.PAGE_SIZE);
 
-        const child_region = try splitRegion(allocator, map, region, boundary);
+        const child_region = splitRegion(allocator, map, region, boundary) catch return null;
         child_region.settings = settings;
         child_region.settings.used = true; // Override this.
         tryToMergeRegionWithBothNeighbours(allocator, map, child_region);
